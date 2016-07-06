@@ -5,7 +5,7 @@ inverseBoundingBox算出処理概要
 
 ProjAEQDクラスのinverseBoundingBox(x1,y1,x2,y2)メソッドは、正距方位図法で投影され描画された地図上の矩形(x1,y1)-(x2,y2)を緯度経度座標系に変換した図形を包含する矩形を計算するメソッドである。
 
-![図a. inverseBoundingBoxのイメージ](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/inverse-bounding-box.png)
+![図a. inverseBoundingBoxのイメージ](inverse-bounding-box.png)  
 図a. inverseBoundingBoxのイメージ
 
 図aにおいて、左上の画像は正距方位図法に投影された地図であり、その地図の座標系上の赤色の矩形を緯度経度座標系上に変換した図形が右下の紫色の図形となる。
@@ -46,12 +46,12 @@ ProjAEQDクラスのinverseBoundingBox(x1,y1,x2,y2)メソッドは、正距方�
 中心の経度が0度以外の値の場合はその分だけシフトすれば同じ議論が成り立つため、経度を0度としても一般性は失わない。
 
 
-### 1. 投影後のXY座標系上の矩形が北極あるいは南極を交差する場合
+### 1. 投影後のXY座標系上の矩形が北極あるいは南極と交差する場合
 
-![図1-1. 投影後のXY座標系上の北極を中心とした矩形の例](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/1-north-pole-proj.png)
+![図1-1. 投影後のXY座標系上の北極を中心とした矩形の例](1-north-pole-proj.png)  
 図1-1. 投影後のXY座標系上の北極を中心とした矩形の例（投影中心 緯度+90度、経度0度）
 
-![図1-2. 北極を中心とした矩形の緯度経度座標系上でのジオメトリ](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/1-north-pole-latlong.png)
+![図1-2. 北極を中心とした矩形の緯度経度座標系上でのジオメトリ](1-north-pole-latlong.png)  
 図1-2. 北極を中心とした矩形の緯度経度座標系上でのジオメトリ
 
 例えば図1-1のように投影後のXY座標系上の矩形が北極を含む場合、その矩形に対応するinverseBoundingBoxは (-180度, λ_L) - (+180度, +90度)となる（図1-2を参照）。
@@ -63,10 +63,10 @@ ProjAEQDクラスのinverseBoundingBox(x1,y1,x2,y2)メソッドは、正距方�
 
 ### 2. 投影後のXY座標系上の矩形が経度±180度の線分と交差する場合で、両極とは交差しない場合
 
-![図2-1. 投影後のXY座標系上の子午線と交差する矩形の例](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/2-cross-meridian-proj.png)
+![図2-1. 投影後のXY座標系上の子午線と交差する矩形の例](2-cross-meridian-proj.png)  
 図2-1. 投影後のXY座標系上の子午線と交差する矩形の例（投影中心 緯度+30度、経度0度）
 
-![図2-2. 子午線と交差する矩形の緯度経度座標系上でのジオメトリ](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/2-cross-meridian-latlong.png)
+![図2-2. 子午線と交差する矩形の緯度経度座標系上でのジオメトリ](2-cross-meridian-latlong.png)  
 図2-2. 子午線と交差する矩形の緯度経度座標系上でのジオメトリ
 
 この場合、経度の範囲を-180度〜+180度で扱ってしまうとinverseBoundingBoxは経度±180度線で分割された矩形となる。
@@ -75,13 +75,13 @@ ProjAEQDクラスのinverseBoundingBox(x1,y1,x2,y2)メソッドは、正距方�
 
 ### 3. 一般的な場合
 
-![図3-1. 投影後のXY座標系上の矩形の例](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/3-general-case-proj.png)
+![図3-1. 投影後のXY座標系上の矩形の例](3-general-case-proj.png)  
 図3-1. 投影後のXY座標系上の矩形の例（投影中心 緯度+30度、経度0度）
 
-![図3-2. 矩形を緯度経度座標系上へ投影したジオメトリ](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/3-general-case-latlong.png)
+![図3-2. 矩形を緯度経度座標系上へ投影したジオメトリ](3-general-case-latlong.png)  
 図3-2. 矩形を緯度経度座標系上へ投影したジオメトリ
 
-![図3-3. 矩形を緯度経度座標系上へ投影したジオメトリ（拡大版）](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/3-general-case-latlong-zoom.png)
+![図3-3. 矩形を緯度経度座標系上へ投影したジオメトリ（拡大版）](3-general-case-latlong-zoom.png)  
 図3-3. 矩形を緯度経度座標系上へ投影したジオメトリ（拡大版）
 
 1,2のどちらにも該当しない一般的な場合は、2次元の直交座標系上の矩形から別の2次元の直交座標系上の図形に投影変換し、その図形を包含する矩形を求める問題に帰着できる。
