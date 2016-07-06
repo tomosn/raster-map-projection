@@ -1,9 +1,9 @@
 Summary of calculations of inverseBoundingBox
 ==============
 
-# inverseBoundingBox method of a projection class
+# inverseBoundingBox method of projection class
 
-![Fig. (a) inverseBoundingBox](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/inverse-bounding-box.png)
+![Fig. (a) inverseBoundingBox](inverse-bounding-box.png)  
 Fig. (a) inverseBoundingBox
 
 
@@ -15,10 +15,10 @@ Fig. (a) inverseBoundingBox
 
 ### 1. The case that the rectangle intersects either pole
 
-![Fig. (1-1) An example that the rectangle contains the North Pole.](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/1-north-pole-proj.png)
+![Fig. (1-1) An example that the rectangle contains the North Pole.](1-north-pole-proj.png)  
 Fig. (1-1) An example that the rectangle contains the North Pole.
 
-![Fig. (1-2) The geometry that transformed to geographic coordinates.](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/1-north-pole-latlong.png)
+![Fig. (1-2) The geometry that transformed to geographic coordinates.](1-north-pole-latlong.png)  
 Fig. (1-2) The geometry that transformed to geographic coordinates.
 
 Reference:
@@ -27,23 +27,23 @@ Reference:
 
 ### 2. The case that the rectangle intersects the meridian (except poles)
 
-![Fig. (2-1) An example that the rectangle intersects the meridian.](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/2-cross-meridian-proj.png)
+![Fig. (2-1) An example that the rectangle intersects the meridian.](2-cross-meridian-proj.png)  
 Fig. (2-1) An example that the rectangle intersects the meridian.
 
-![Fig. (2-2) The geometry that transformed to geographic coordinates.](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/2-cross-meridian-latlong.png)
+![Fig. (2-2) The geometry that transformed to geographic coordinates.](2-cross-meridian-latlong.png)  
 Fig. (2-2) The geometry that transformed to geographic coordinates.
 
 
 
 ### 3. The general case
 
-![Fig. (3-1) An example of the general case.](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/3-general-case-proj.png)
+![Fig. (3-1) An example of the general case.](3-general-case-proj.png)  
 Fig. (3-1) An example of the general case.
 
-![Fig. (3-2) The geometry that transformed to geographic coordinates.](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/3-general-case-latlong.png)
+![Fig. (3-2) The geometry that transformed to geographic coordinates.](3-general-case-latlong.png)  
 Fig. (3-2) The geometry that transformed to geographic coordinates.
 
-![Fig. (3-3) The geometry that transformed to geographic coordinates (zoomed in).](https://raw.githubusercontent.com/tomosn/raster-map-projection/master/docs/3-general-case-latlong-zoom.png)
+![Fig. (3-3) The geometry that transformed to geographic coordinates (zoomed in).](3-general-case-latlong-zoom.png)  
 Fig. (3-3) The geometry that transformed to geographic coordinates (zoomed in).
 
 
