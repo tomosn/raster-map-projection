@@ -18,5 +18,7 @@ WebGLを用いて動的に投影変換を行うため、リアルタイムでの
 -----
 http://www.flatearthlab.com/WebGL/
 
+![画面イメージ](docs/sample.png)  
+
 ----
 Copyright (C) 2016 T.Seno

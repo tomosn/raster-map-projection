@@ -6,5 +6,7 @@ Demo
 -----
 http://www.flatearthlab.com/WebGL/
 
+![sample image](docs/sample.png)  
+
 ----
 Copyright (C) 2016 T.Seno
