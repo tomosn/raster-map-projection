@@ -6,7 +6,12 @@ Demo
 -----
 http://www.flatearthlab.com/WebGL/
 
-![sample image](docs/sample.png)  
+![sample image (aeqd)](docs/sample.png)  
+Fig.(1) Azimuthal Equidistant Projection
+
+![sample image (laea)](docs/sample-laea.png)  
+Fig.(2) Lambert Azimuthal Equal-Area Projection
+
 
 ----
 Copyright (C) 2016 T.Seno

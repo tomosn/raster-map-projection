@@ -18,7 +18,11 @@ WebGLを用いて動的に投影変換を行うため、リアルタイムでの
 -----
 http://www.flatearthlab.com/WebGL/
 
-![画面イメージ](docs/sample.png)  
+![画面イメージ(aeqd)](docs/sample.png)  
+Fig.(1) Azimuthal Equidistant Projection - 正距方位図法
+
+![画面イメージ(laea)](docs/sample-laea.png)  
+Fig.(2) Lambert Azimuthal Equal-Area Projection - ランベルト正積方位図法
 
 ----
 Copyright (C) 2016 T.Seno
