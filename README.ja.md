@@ -18,7 +18,7 @@ WebGLを用いて動的に投影変換を行うため、リアルタイムでの
 -----
 http://www.flatearthlab.com/WebGL/
 
-![画面イメージ(aeqd)](docs/sample.png)  
+![画面イメージ(aeqd)](docs/sample-aeqd.png)  
 Fig.(1) Azimuthal Equidistant Projection - 正距方位図法
 
 ![画面イメージ(laea)](docs/sample-laea.png)  
