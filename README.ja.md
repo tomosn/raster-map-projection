@@ -5,7 +5,7 @@ WebGLを用いたラスタタイル画像投影変換JavaScriptライブラリ
 緯度経度座標系(EPSG:4326)上のラスタタイル画像を投影変換してCanvas上に表示します。
 WebGLを用いて動的に投影変換を行うため、リアルタイムでの投影中心の変更や拡大縮小等の操作も可能です。
 
-※ なお、現バージョンでは正距方位図法(Azimuthal Equidistant Projection)、ランベルト正積方位図法(Lambert Azimuthal Equal-Area Projection)に対応しています。
+※ なお、現バージョンでは正距方位図法(Azimuthal Equidistant Projection)、ランベルト正積方位図法(Lambert Azimuthal Equal-Area Projection)、横メルカトル図法(Transverse Mercator Projection)に対応しています。
 
 特徴
 -----
@@ -23,6 +23,9 @@ Fig.(1) Azimuthal Equidistant Projection - 正距方位図法
 
 ![画面イメージ(laea)](docs/sample-laea.png)  
 Fig.(2) Lambert Azimuthal Equal-Area Projection - ランベルト正積方位図法
+
+![画面イメージ(tmerc)](docs/sample-tmerc.png)  
+Fig.(2) Transverse Mercator Projection - 横メルカトル図法
 
 ----
 Copyright (C) 2016 T.Seno
