@@ -6,13 +6,13 @@ Demo
 -----
 http://www.flatearthlab.com/WebGL/
 
-![sample image (aeqd)](docs/sample-aeqd.png)  
+![sample image (aeqd)](docs/sample-aeqd-tokyo.png)  
 Fig.(1) Azimuthal Equidistant Projection
 
-![sample image (laea)](docs/sample-laea.png)  
+![sample image (laea)](docs/sample-laea-tokyo.png)  
 Fig.(2) Lambert Azimuthal Equal-Area Projection
 
-![sample image (tmerc)](docs/sample-tmerc.png)  
+![sample image (tmerc)](docs/sample-tmerc-tokyo.png)  
 Fig.(3) Transverse Mercator Projection
 
 

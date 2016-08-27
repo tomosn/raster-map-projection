@@ -18,13 +18,13 @@ WebGLを用いて動的に投影変換を行うため、リアルタイムでの
 -----
 http://www.flatearthlab.com/WebGL/
 
-![画面イメージ(aeqd)](docs/sample-aeqd.png)  
+![画面イメージ(aeqd)](docs/sample-aeqd-tokyo.png)  
 Fig.(1) Azimuthal Equidistant Projection - 正距方位図法
 
-![画面イメージ(laea)](docs/sample-laea.png)  
+![画面イメージ(laea)](docs/sample-laea-tokyo.png)  
 Fig.(2) Lambert Azimuthal Equal-Area Projection - ランベルト正積方位図法
 
-![画面イメージ(tmerc)](docs/sample-tmerc.png)  
+![画面イメージ(tmerc)](docs/sample-tmerc-tokyo.png)  
 Fig.(2) Transverse Mercator Projection - 横メルカトル図法
 
 ----
