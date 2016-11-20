@@ -17,4 +17,4 @@ Fig.(3) Transverse Mercator Projection
 
 
 ----
-Copyright (C) 2016 T.Seno
+Copyright (C) 2016 T.Seno All rights reserved. 

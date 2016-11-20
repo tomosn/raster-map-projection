@@ -28,4 +28,4 @@ Fig.(2) Lambert Azimuthal Equal-Area Projection - ランベルト正積方位図
 Fig.(2) Transverse Mercator Projection - 横メルカトル図法
 
 ----
-Copyright (C) 2016 T.Seno
+Copyright (C) 2016 T.Seno All rights reserved. 
