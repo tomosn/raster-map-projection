@@ -16,7 +16,7 @@ WebGLを用いて動的に投影変換を行うため、リアルタイムでの
 
 デモ
 -----
-http://www.flatearthlab.com/WebGL/
+http://www.flatearthlab.com/WebGL/  
 http://www.flatearthlab.com/WebGL/fullwindow.html?projCenter=35.6869627643712,139.749461570545
 
 ![画面イメージ(aeqd)](docs/sample-aeqd-tokyo.png)  
