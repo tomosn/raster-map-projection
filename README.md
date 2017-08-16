@@ -5,6 +5,7 @@ raster-map-projection is a JavaScript library for projection of raster tiles usi
 Demo
 -----
 http://www.flatearthlab.com/WebGL/
+http://www.flatearthlab.com/WebGL/fullwindow.html?projCenter=35.6869627643712,139.749461570545
 
 ![sample image (aeqd)](docs/sample-aeqd-tokyo.png)  
 Fig.(1) Azimuthal Equidistant Projection
@@ -17,4 +18,4 @@ Fig.(3) Transverse Mercator Projection
 
 
 ----
-Copyright (C) 2016 T.Seno All rights reserved. 
+Copyright (C) 2016-2017 T.Seno All rights reserved.
