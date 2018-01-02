@@ -1,6 +1,6 @@
 raster-map-projection
 ==============
-raster-map-projection is a JavaScript library for projection of raster tiles using WebGL.
+raster-map-projection is a JavaScript library for on-the-fly map projection of raster tiles using WebGL.
 
 
 Supported map projections
