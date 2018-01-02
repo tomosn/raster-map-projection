@@ -1,6 +1,6 @@
- /**
- * Raster Map Projection v0.0.13  2016-11-13
- * Copyright (C) 2016 T.Seno
+/**
+ * Raster Map Projection v0.0.22  2018-01-02
+ * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
  */
@@ -10,7 +10,7 @@ if (typeof module!='undefined' && module.exports) {
   var ProjMath = require('./rasterproj-common.js');
 }
 
-
+// -----------------------------------------------------
 
 /**
  * ラスタタイル情報管理
@@ -19,76 +19,94 @@ if (typeof module!='undefined' && module.exports) {
  * @param {number} numLevels
  * @constructor
  */
-var TileManager = function(tile_opts) {
+var TileManager = function(tileOpts) {
   this.rootNumX = 2;
   this.rootNumY = 1;
   this.rootTileSizeX = Math.PI;
   this.rootTileSizeY = Math.PI;
   this.numLevels = 1;
   this.inverseY = false;
-  this.tileOrigin = [ -Math.PI, -Math.PI/2 ];     // lower left
+  this.tileOrigin = [-Math.PI, -Math.PI/2];     // lower left
   //
-  if (typeof tile_opts !== 'undefined') {
-    if ('rootNumX' in tile_opts) {
-      this.rootNumX = tile_opts.rootNumX;
+  this.tileDomain = [-Math.PI, -Math.PI/2, +Math.PI, +Math.PI/2];   //  タイル領域全体
+  //
+  this.dataLevelDef = null;
+  this.tileUrlDef = null;
+  //
+  if (typeof tileOpts !== 'undefined') {
+    if ('rootNumX' in tileOpts) {
+      this.rootNumX = tileOpts.rootNumX;
     }
-    if ('rootNumY' in tile_opts) {
-      this.rootNumY = tile_opts.rootNumY;
+    if ('rootNumY' in tileOpts) {
+      this.rootNumY = tileOpts.rootNumY;
     }
-    if ('rootTileSizeX' in tile_opts) {
-      this.rootTileSizeX = tile_opts.rootTileSizeX;
+    if ('rootTileSizeX' in tileOpts) {
+      this.rootTileSizeX = tileOpts.rootTileSizeX;
     }
-    if ('tileSizeY' in tile_opts) {
-      this.rootTileSizeY = tile_opts.rootTileSizeY;
+    if ('rootTileSizeY' in tileOpts) {
+      this.rootTileSizeY = tileOpts.rootTileSizeY;
     }
-    if ('numLevels' in tile_opts) {
-      this.numLevels = tile_opts.numLevels;
+    if ('numLevels' in tileOpts) {
+      this.numLevels = tileOpts.numLevels;
     }
-    if ('inverseY' in tile_opts) {
-      this.inverseY = tile_opts.inverseY;   //  TODO booleanへの型変換
+    if ('inverseY' in tileOpts) {
+      this.inverseY = tileOpts.inverseY;
     }
-    if ('tileOrigin' in tile_opts) {
-      this.tileOrigin = tile_opts.tileOrigin;   //  TODO Array型チェック!!
+    if ('tileOrigin' in tileOpts) {
+      this.tileOrigin = tileOpts.tileOrigin;
+    }
+    if ('dataLevelDef' in tileOpts) {
+      this.dataLevelDef = tileOpts.dataLevelDef;
+    }
+    if ('tileUrlDef' in tileOpts) {
+      this.tileUrlDef = tileOpts.tileUrlDef;
     }
   }
-  //
-  this.rootSizeX = this.rootNumX * this.rootTileSizeX;
-  this.rootSizeY = this.rootNumY * this.rootTileSizeY;
 };
 
-TileManager.prototype.getTileX_ = function(numX, lam) {
-  return Math.floor( numX * (lam - this.tileOrigin[0]) / this.rootSizeX );
+TileManager.prototype.getTileX_ = function(scale, lam) {
+  return Math.floor( scale * (lam - this.tileOrigin[0]) / this.rootTileSizeX );
 };
 
-TileManager.prototype.getTileY_ = function(numY, phi) {
+TileManager.prototype.getTileY_ = function(scale, phi) {
   var sign = this.inverseY ? -1 : +1;
-  return Math.floor( sign * numY * (phi - this.tileOrigin[1]) / this.rootSizeY );
+  return Math.floor( sign * scale * (phi - this.tileOrigin[1]) / this.rootTileSizeY );
 };
 
-TileManager.prototype.getTileNum_ = function(level) {
+TileManager.prototype.getTileNumX_ = function(scale) {
+  return Math.ceil( scale * (this.tileDomain[2] - this.tileOrigin[0]) / this.rootTileSizeX );
+};
+
+TileManager.prototype.getTileNumY_ = function(scale) {
+  var sign = this.inverseY ? -1 : +1;
+  var phi = this.inverseY ? this.tileDomain[1] : this.tileDomain[3];
+  return Math.ceil( sign * scale * (phi - this.tileOrigin[1]) / this.rootTileSizeY );
+};
+
+TileManager.prototype.getScale_ = function(level) {
   var p = Math.round(ProjMath.clamp(level, 0, this.numLevels-1));
   var s = (1 << p);
-  return [ s * this.rootNumX, s * this.rootNumY ];
+  return s;
 };
 
-
 /**
- * getUrl : function(level, ix, iy) -> URL
+ *
  */
-TileManager.prototype.getTileInfos = function(lamRange, phiRange, level, getUrl) {
-  var tileNum = this.getTileNum_(level);
-  var numX = tileNum[0];
-  var numY = tileNum[1];
-  var idxX1 = this.getTileX_(numX, lamRange[0]);
-  var idxX2 = this.getTileX_(numX, lamRange[1]);
+TileManager.prototype.getTileInfos = function(dataRect, level) {
+  var scale = this.getScale_(level);
+  var numX = this.getTileNumX_(scale);
+  var idxX1 = this.getTileX_(scale, dataRect.lambda[0]);
+  var idxX2 = this.getTileX_(scale, dataRect.lambda[1]);
 
-  var idxY1, idxY2;
+  var numY = this.getTileNumY_(scale);
+  var idxY1;
+  var idxY2;
   if ( !this.inverseY ) {
-    idxY1 = this.getTileY_(numY, phiRange[0]);
-    idxY2 = this.getTileY_(numY, phiRange[1]);
+    idxY1 = this.getTileY_(scale, dataRect.phi[0]);
+    idxY2 = this.getTileY_(scale, dataRect.phi[1]);
   } else {
-    idxY1 = this.getTileY_(numY, phiRange[1]);
-    idxY2 = this.getTileY_(numY, phiRange[0]);
+    idxY1 = this.getTileY_(scale, dataRect.phi[1]);
+    idxY2 = this.getTileY_(scale, dataRect.phi[0]);
   }
 
   var ret = [];
@@ -105,21 +123,41 @@ TileManager.prototype.getTileInfos = function(lamRange, phiRange, level, getUrl)
       if ( ixMin == ix )   break;
       if ( ix < ixMin )   ixMin = ix;
 
-      var str = getUrl(level, ix, iy);
-      var x1 = (this.rootSizeX * ix / numX) + this.tileOrigin[0];
-      var x2 = (this.rootSizeX * (ix + 1) / numX) + this.tileOrigin[0];
+      var str = this.tileUrlDef(level, ix, iy);
+      var x1 = (this.rootTileSizeX * ix / scale) + this.tileOrigin[0];
+      var x2 = (this.rootTileSizeX * (ix + 1) / scale) + this.tileOrigin[0];
 
-      var y1, y2;
-      if ( !this.inverseY ){
-        y1 = (this.rootSizeY * iy / numY) + this.tileOrigin[1];
-        y2 = (this.rootSizeY * (iy + 1) / numY) + this.tileOrigin[1];
+      var y1;
+      var y2;
+      if ( !this.inverseY ) {
+        y1 = (this.rootTileSizeY * iy / scale) + this.tileOrigin[1];
+        y2 = (this.rootTileSizeY * (iy + 1) / scale) + this.tileOrigin[1];
       } else {
-        y1 = (-this.rootSizeY * (iy + 1) / numY) + this.tileOrigin[1];
-        y2 = (-this.rootSizeY * iy / numY) + this.tileOrigin[1];
+        y1 = (-this.rootTileSizeY * (iy + 1) / scale) + this.tileOrigin[1];
+        y2 = (-this.rootTileSizeY * iy / scale) + this.tileOrigin[1];
       }
+
+      var clipRect = null;
+      if ( x1 < this.tileDomain[0] || y1 < this.tileDomain[1] || this.tileDomain[2] < x2 || this.tileDomain[3] < y2 ) {
+        clipRect = [0.0, 0.0, 1.0, 1.0];
+        if (x1 < this.tileDomain[0]) {
+          clipRect[0] = (this.tileDomain[0] - x1) / (x2 - x1);
+        }
+        if (y1 < this.tileDomain[1]) {
+          clipRect[1] = (this.tileDomain[1] - y1) / (y2 - y1);
+        }
+        if (this.tileDomain[2] < x2) {
+          clipRect[2] = (this.tileDomain[2] - x1) / (x2 - x1);
+        }
+        if (this.tileDomain[3] < y2) {
+          clipRect[3] = (this.tileDomain[3] - y1) / (y2 - y1);
+        }
+      }
+
       ret.push({
         url: str,
-        rect: [x1, y1, x2, y2]
+        rect: [x1, y1, x2, y2],
+        clipRect: clipRect
       });
     }
   }
@@ -132,51 +170,49 @@ TileManager.prototype.getTileInfos = function(lamRange, phiRange, level, getUrl)
  * 画像キャッシュ
  * @constructor
  */
-var ImageCache = function(cache_opts) {
+var ImageCache = function(observer, cacheOpts) {
   this.num = 32;             //  default: 32
   this.crossOrigin = null;
   this.textures = {};
   this.loading = {};
   this.ongoingImageLoads = [];
+  this.observer_ = observer;
   //
-  if (typeof cache_opts !== 'undefined') {
-    if ('num' in cache_opts) {
-      this.num = cache_opts.num;
+  if (typeof cacheOpts !== 'undefined') {
+    if ('num' in cacheOpts) {
+      this.num = cacheOpts.num;
     }
-    if ('crossOrigin' in cache_opts) {
-      this.crossOrigin = cache_opts.crossOrigin;
+    if ('crossOrigin' in cacheOpts) {
+      this.crossOrigin = cacheOpts.crossOrigin;
     }
   }
-  //
-  this.createTexture = null;
 };
 
 
-ImageCache.prototype.loadImage_ = function(url, info) {
+ImageCache.prototype.loadImage_ = function(gl, url, info) {
   this.loading[url] = true;
   var image = new Image();
   if ( this.crossOrigin != null ) {
     image.crossOrigin = this.crossOrigin;
   }
-  var cache = this;
   image.onload = function() {
-    cache.ongoingImageLoads.splice(cache.ongoingImageLoads.indexOf(image), 1);
-    if ( cache.createTexture == null )   return;
-    var tex = cache.createTexture(image);
+    this.ongoingImageLoads.splice(this.ongoingImageLoads.indexOf(image), 1);
+    var tex = ImageUtils.createTexture(gl, image);
     if ( tex ) {
-      cache.textures[url] = [ tex, info ];
+      this.textures[url] = [tex, info];
     }
-    delete cache.loading.url;
-  };
+    delete this.loading.url;
+    this.observer_.call(this);
+  }.bind(this);
   this.ongoingImageLoads.push(image);
   image.src = url;
 };
 
 
-ImageCache.prototype.loadImageIfAbsent = function(url, info) {
+ImageCache.prototype.loadImageIfAbsent = function(gl, url, info) {
   if ( url in this.textures )   return false;
   if ( url in this.loading )    return false;
-  this.loadImage_(url, info);
+  this.loadImage_(gl, url, info);
   return true;  //  ロード開始
 };
 
@@ -198,23 +234,23 @@ ImageCache.prototype.clearOngoingImageLoads = function() {
 
 /**
  * 直交座標系間の変換
- * @param {Array.<number>} src_coord_rect
- * @param {Array.<number>} dst_coord_rect
+ * @param {Array.<number>} srcCoordRect
+ * @param {Array.<number>} dstCoordRect
  * @constructor
  */
-var CoordTransform = function(src_coord_rect, dst_coord_rect) {
-  this.src_x1_ = src_coord_rect[0];
-  this.src_y1_ = src_coord_rect[1];
-  this.src_x2_ = src_coord_rect[2];
-  this.src_y2_ = src_coord_rect[3];
+var CoordTransform = function(srcCoordRect, dstCoordRect) {
+  this.src_x1_ = srcCoordRect[0];
+  this.src_y1_ = srcCoordRect[1];
+  this.src_x2_ = srcCoordRect[2];
+  this.src_y2_ = srcCoordRect[3];
   //
-  this.dst_x1_ = dst_coord_rect[0];
-  this.dst_y1_ = dst_coord_rect[1];
-  this.dst_x2_ = dst_coord_rect[2];
-  this.dst_y2_ = dst_coord_rect[3];
+  this.dst_x1_ = dstCoordRect[0];
+  this.dst_y1_ = dstCoordRect[1];
+  this.dst_x2_ = dstCoordRect[2];
+  this.dst_y2_ = dstCoordRect[3];
   //
-  this.scaleX_ = (dst_coord_rect[2] - dst_coord_rect[0]) / (src_coord_rect[2] - src_coord_rect[0]);
-  this.scaleY_ = (dst_coord_rect[3] - dst_coord_rect[1]) / (src_coord_rect[3] - src_coord_rect[1]);
+  this.scaleX_ = (dstCoordRect[2] - dstCoordRect[0]) / (srcCoordRect[2] - srcCoordRect[0]);
+  this.scaleY_ = (dstCoordRect[3] - dstCoordRect[1]) / (srcCoordRect[3] - srcCoordRect[1]);
 };
 
 CoordTransform.prototype.scaleX = function() {
@@ -225,16 +261,16 @@ CoordTransform.prototype.scaleY = function() {
   return this.scaleY_;
 };
 
-CoordTransform.prototype.forwardPoint = function(src_pos) {
-  var x = this.dst_x1_ + (src_pos[0] - this.src_x1_) * this.scaleX_;
-  var y = this.dst_y1_ + (src_pos[1] - this.src_y1_) * this.scaleY_;
+CoordTransform.prototype.forwardPoint = function(srcPos) {
+  var x = this.dst_x1_ + (srcPos[0] - this.src_x1_) * this.scaleX_;
+  var y = this.dst_y1_ + (srcPos[1] - this.src_y1_) * this.scaleY_;
   return [x, y];
 };
 
 
-CoordTransform.prototype.forwardRect = function(src_rect) {
-  var pt1 = this.forwardPoint([src_rect[0], src_rect[1]]);
-  var pt2 = this.forwardPoint([src_rect[2], src_rect[3]]);
+CoordTransform.prototype.forwardRect = function(srcRect) {
+  var pt1 = this.forwardPoint([srcRect[0], srcRect[1]]);
+  var pt2 = this.forwardPoint([srcRect[2], srcRect[3]]);
   return [pt1[0], pt1[1], pt2[0], pt2[1]];
 };
 
@@ -242,7 +278,7 @@ CoordTransform.prototype.forwardRect = function(src_rect) {
 /* ------------------------------------------------------------ */
 
 var ViewWindowManager = function(viewRect, canvasSize, opts) {
-  this.canvasSize = { width: canvasSize.width, height: canvasSize.height };  //  TODO assert?
+  this.canvasSize = {width: canvasSize.width, height: canvasSize.height};
   //
   this.viewRect_ = viewRect;   //  投影後の全体領域, projに依存する定数
   this.zoomInLimit_ = null;
@@ -266,7 +302,7 @@ ViewWindowManager.prototype.setCanvasSize = function(canvasWidth, canvasHeight) 
 };
 
 ViewWindowManager.prototype.getCanvasSize = function() {
-  return { width: this.canvasSize.width, height: this.canvasSize.height };  //  copy
+  return {width: this.canvasSize.width, height: this.canvasSize.height};  //  copy
 };
 
 ViewWindowManager.prototype.getViewRect = function() {
@@ -284,7 +320,7 @@ ViewWindowManager.prototype.getViewWindow = function() {
 ViewWindowManager.prototype.setViewWindowCenter = function(cx, cy) {
   var w = (this.rect[2] - this.rect[0]) / 2;
   var h = (this.rect[3] - this.rect[1]) / 2;
-  this.rect = [ cx-w, cy-h, cx+w, cy+h ];
+  this.rect = [cx-w, cy-h, cx+w, cy+h];
 };
 
 ViewWindowManager.prototype.getViewWindowCenter = function() {
@@ -300,7 +336,7 @@ ViewWindowManager.prototype.moveWindow = function(dx, dy) {
   var y1 = this.rect[1] + ty;
   var x2 = this.rect[2] + tx;
   var y2 = this.rect[3] + ty;
-  this.rect = [ x1, y1, x2, y2 ];
+  this.rect = [x1, y1, x2, y2];
 };
 
 ViewWindowManager.prototype.zoomWindow = function(dz) {
@@ -315,7 +351,7 @@ ViewWindowManager.prototype.zoomWindow = function(dz) {
   if ( this.zoomInLimit_ != null && (w < this.zoomInLimit_ || h < this.zoomInLimit_) )  return;
   if ( this.zoomOutLimit_ != null && (this.zoomOutLimit_ < w || this.zoomOutLimit_ < h) )  return;
 
-  this.rect = [ cx-w, cy-h, cx+w, cy+h ];
+  this.rect = [cx-w, cy-h, cx+w, cy+h];
 };
 
 ViewWindowManager.prototype.getViewPointFromWindow = function(x, y) {
@@ -323,102 +359,67 @@ ViewWindowManager.prototype.getViewPointFromWindow = function(x, y) {
   return trans.forwardPoint([x, y]);
 };
 
-ViewWindowManager.prototype.getNormalizedSize = function(size) {
-  return { width: size.width / this.canvasSize.width, height: size.height / this.canvasSize.height };
-};
-
-/**
- * 長辺を1となるように正規化されたCanvasの矩形を取得する。
- * TRIANGLE_STRIPの形式の点列とする。
- */
-ViewWindowManager.prototype.getNormalizedRectAsTriangleStrip = function() {
-  var sx = 0.5;
-  var sy = 0.5;
-  if ( this.canvasSize.width < this.canvasSize.width ) {
-    sy = 0.5 * this.canvasSize.height / this.canvasSize.width;
-  } else if ( this.canvasSize.width < this.canvasSize.height ) {
-    sx = 0.5 * this.canvasSize.width / this.canvasSize.height;
-  }
-  return new Float32Array([
-    0.5-sx, 0.5-sy,   // left top
-    0.5-sx, 0.5+sy,   // left bottom
-    0.5+sx, 0.5-sy,   // right top
-    0.5+sx, 0.5+sy    // right bottom
-  ]);
-};
-
 /* ------------------------------------------------------------ */
 
 /**
  * Map View
  * @param {object} gl
- * @param {object} RasterProjAEQD or RasterProjLAEA
+ * @param {object} ProjAEQD or ProjLAEA
  * @param {number} numLevels
  * @constructor
  */
-var MapView = function(gl, imgProj, canvasSize, tile_opts, cache_opts) {
+var MapView = function(gl, proj, canvasSize, tileOpts, cacheOpts) {
   this.gl = gl;
-  this.imageProj = imgProj;
+  this.projection = proj;
+  this.imageProj = RasterMapProjection.createShaderProgram(gl);
+  this.imageProj.init(proj.getVertexShaderStr(), proj.getFragmentShaderStr());
   //
   var viewWindowOpts = {
     zoomInLimit: Math.PI / 20.0,
     zoomOutLimit: Math.PI * 20
   };
-  var rangeRect = this.imageProj.projection.getRange();
+  var rangeRect = this.projection.getRange();
   this.viewWindowManager_ = new ViewWindowManager(rangeRect, canvasSize, viewWindowOpts);
   //
-  this.tileManager = new TileManager(tile_opts);
-  this.prevTileInfos_ = null;
-  this.prevWindow_ = null;
+  this.layers_ = [];
+  this.nameToLayers_ = {};
   //
-  this.imageCache = new ImageCache(cache_opts);
-  var self = this;
-  this.imageCache.createTexture = function(img) {
-    return self.createTexture(img);
-  };
-  //
-  this.centerIcon_ = null;
-  this.centerIconSize_ = null;  //  iconSize: { width:, height: } [pixel]
-  //
-  this.graticuleInterval = 20;   //  0以下の場合は緯度経度線を描画しない
-  this.createUrl = null;
-  this.calculateLevel = null;
-};
-
-MapView.prototype.clearTileInfoCache_ = function() {
-  this.prevWindow_ = null;
-  this.prevTileInfos_ = null;
-};
-
-MapView.prototype.setCenterIcon = function(iconTexture, size) {
-  this.centerIcon_ = iconTexture;
-  this.centerIconSize_ = size;
+  this.isValid_ = false;
 };
 
 MapView.prototype.setProjCenter = function(lam, phi) {
-  this.clearTileInfoCache_();
+  this.projection.setProjCenter(lam, phi);
   this.imageProj.setProjCenter(lam, phi);
+  this.invalidateLayers();
+  this.invalidate();
 };
 
 MapView.prototype.getProjCenter = function() {
-  return this.imageProj.projection.getProjCenter();
+  return this.projection.getProjCenter();
 };
 
 MapView.prototype.getViewRect = function() {
   return this.viewWindowManager_.getViewRect();
 };
 
+MapView.prototype.getWindow = function() {
+  return this.viewWindowManager_.getViewWindow();
+};
+
 MapView.prototype.setWindow = function(x1, y1, x2, y2) {
-  this.clearTileInfoCache_();
   this.viewWindowManager_.setViewWindow(x1, y1, x2, y2);
+  this.invalidateLayers();
+  this.invalidate();
 };
 
 MapView.prototype.moveWindow = function(dx, dy) {
   this.viewWindowManager_.moveWindow(dx, dy);
+  this.invalidate();
 };
 
 MapView.prototype.zoomWindow = function(dz) {
   this.viewWindowManager_.zoomWindow(dz);
+  this.invalidate();
 };
 
 MapView.prototype.getViewCenterPoint = function() {
@@ -427,111 +428,414 @@ MapView.prototype.getViewCenterPoint = function() {
 
 MapView.prototype.setViewCenterPoint = function(cx, cy) {
   this.viewWindowManager_.setViewWindowCenter(cx, cy);
+  this.invalidate();
 };
 
 
 MapView.prototype.getLambdaPhiPointFromWindow = function(x, y) {
   var viewPos = this.viewWindowManager_.getViewPointFromWindow(x, y);
-  return this.imageProj.projection.inverse(viewPos[0], viewPos[1]);
+  return this.projection.inverse(viewPos[0], viewPos[1]);
 };
 
-
-MapView.prototype.resetImages = function() {
-  this.imageCache.clearOngoingImageLoads();
+MapView.prototype.getViewPointFromWindow = function(x, y) {
+  return this.viewWindowManager_.getViewPointFromWindow(x, y);
 };
 
+MapView.prototype.invalidate = function() {
+  this.isValid_ = false;
+};
 
-MapView.prototype.requestImagesIfNecessary = function() {
-  if ( this.createUrl == null )   return -1;
-  var tileInfos = this.getTileInfos_();
-  var count = this.requestImages_(tileInfos);
+MapView.prototype.invalidateLayers = function() {
+  for (var j = 0; j < this.layers_.length; ++j) {
+    this.layers_[j].invalidate();
+  }
+};
+
+MapView.prototype.loadData = function() {
+  for (var j = 0; j < this.layers_.length; ++j) {
+    this.layers_[j].loadData(this);
+  }
+  this.invalidate();
+};
+
+MapView.prototype.createTexture = function(img) {
+  return ImageUtils.createTexture(this.gl, img);
+};
+
+MapView.prototype.addLayer = function(layer) {
+  this.layers_.push(layer);
+  this.nameToLayers_[layer.layerId] = layer;
+  this.invalidate();
+};
+
+MapView.prototype.clearLayers = function() {
+  this.layers_.splice(0, this.layers_.length);
+  this.nameToLayers_ = {};
+  this.invalidate();
+};
+
+MapView.prototype.getLayerById = function(layerId) {
+  return this.nameToLayers_[layerId];
+};
+
+MapView.prototype.render = function(force) {
+  if ( force === true ) {
+    for (var j = 0; j < this.layers_.length; ++j) {
+      this.layers_[j].markInvalid();
+    }
+  } else if ( !this.requireRender_() ) {
+    return false;
+  }
+
+  this.imageProj.clear(this.viewWindowManager_.canvasSize);
+
+  var center = this.projection.getProjCenter();
+  this.imageProj.setProjCenter(center.lambda, center.phi);
+
+  var window = this.viewWindowManager_.getViewWindow();
+  this.imageProj.setViewWindow(window[0], window[1], window[2], window[3]);
+
+  //
+  for (var k = 0; k < this.layers_.length; ++k) {
+    if ( this.layers_[k].visibility ) {
+      this.layers_[k].render(this);
+    } else {
+      this.layers_[k].markValid();
+    }
+  }
+
+  this.isValid_ = true;
+  return true;
+};
+
+MapView.prototype.requireRender_ = function() {
+  if ( !this.isValid_ ) {
+    return true;
+  }
+  for (var j = 0; j < this.layers_.length; ++j) {
+    if ( !this.layers_[j].isValid() ) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/* ------------------------------------------------------------ */
+
+/**
+ * Layer
+ * @param {string} layerId
+ * @param {number} coordType
+ */
+var Layer = function(layerId, coordType) {
+  this.layerId = layerId;
+  this.coordType = coordType;
+  this.visibility = true;
+  //
+  this.isValid_ = false;
+};
+
+Layer.prototype.isValid = function() {
+  return this.isValid_;
+};
+
+Layer.prototype.markInvalid = function() {
+  this.isValid_ = false;
+};
+
+Layer.prototype.markValid = function() {
+  this.isValid_ = true;
+};
+
+Layer.prototype.loadData = function(mapView) {
+  //  default : empty
+};
+
+Layer.prototype.invalidate = function() {
+  //  default : empty
+  this.markInvalid();
+};
+
+Layer.prototype.setVisibility = function(visible) {
+  this.visibility = visible;
+  this.markInvalid();
+};
+
+Layer.prototype.render = function(mapView) {
+  //  default : empty
+  this.markValid();
+};
+
+/* ------------------------------------------------------------ */
+
+/**
+ * TileTextureLayer
+ * @param {string} layerId
+ * @param {number} coordType
+ * @param {object} style (option)
+ */
+var TileTextureLayer = function(layerId, coordType, style, tileOpts, cacheOpts) {
+  Layer.call(this, layerId, coordType);
+  //
+  this.tileManager = new TileManager(tileOpts);
+  this.prevTileInfos_ = null;
+  this.prevWindow_ = null;
+  //
+  var observer = function() {
+    this.markInvalid();
+  }.bind(this);
+  this.imageCache = new ImageCache(observer, cacheOpts);
+  //
+  this.opacity = 1.0;
+  if (typeof style !== 'undefined') {
+    if ('opacity' in style) {
+      this.opacity = style.opacity;
+    }
+  }
+};
+Object.setPrototypeOf(TileTextureLayer.prototype, Layer.prototype);
+
+//  override
+TileTextureLayer.prototype.invalidate = function() {
+  this.clearTileInfoCache_();
+  this.markInvalid();
+};
+
+//  override
+TileTextureLayer.prototype.loadData = function(mapView) {
+  if ( this.tileManager.tileUrlDef == null )   return -1;
+  var tileInfos = this.getTileInfos_(mapView);
+  var count = this.requestImages_(mapView.gl, tileInfos);
+  this.markInvalid();
   return count;
 };
 
-
-MapView.prototype.render = function() {
-  if ( this.createUrl == null )   return;
-  var tileInfos = this.getTileInfos_();
-  this.requestImages_(tileInfos);
-  this.render_(tileInfos);
+TileTextureLayer.prototype.setTileUrlDef = function(tileUrlDef) {
+  this.tileManager.tileUrlDef = tileUrlDef;
+  this.markInvalid();
 };
 
-//  TODO この実装の詳細は別の場所にあるべきか
-MapView.prototype.createTexture = function(img) {
-  var tex = this.gl.createTexture();
-  this.gl.bindTexture(this.gl.TEXTURE_2D, tex);
-  this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, true);
-  this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-  this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-
-  this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-  this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-
-  this.gl.bindTexture(this.gl.TEXTURE_2D, tex);
-  this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, img);
-
-  this.gl.bindTexture(this.gl.TEXTURE_2D, null);
-  return tex;
+TileTextureLayer.prototype.setDataLevelDef = function(dataLevelDef) {
+  this.tileManager.dataLevelDef = dataLevelDef;
+  this.markInvalid();
 };
 
+TileTextureLayer.prototype.resetImages = function() {
+  this.imageCache.clearOngoingImageLoads();
+  this.markInvalid();
+};
 
-MapView.prototype.getTileInfos_ = function() {
-  var window = this.viewWindowManager_.getViewWindow();
-  if ( this.prevTileInfos_ != null && this.prevWindow_ != null ) {
-    if (window[0] == this.prevWindow_[0] && window[1] == this.prevWindow_[1] &&
-      window[2] == this.prevWindow_[2] && window[3] == this.prevWindow_[3]) {
-        return this.prevTileInfos_;  //  TODO clone?
+TileTextureLayer.prototype.render = function(mapView) {
+  if ( this.tileManager.tileUrlDef == null )   return;
+  var tileInfos = this.getTileInfos_(mapView);
+  this.requestImages_(mapView.gl, tileInfos);
+
+  var textures = [];
+  for (var i = 0; i < tileInfos.length; ++i ) {
+    var info = tileInfos[i];
+    var tex = this.imageCache.getTexture(info.url);
+    if ( tex ) {
+      tex.push(info.clipRect);
+      textures.push(tex);
     }
-    this.prevTileInfos_ = null;
-    this.prevWindow_ = null;
   }
-  var dataRect = this.imageProj.projection.inverseBoundingBox(window[0], window[1], window[2], window[3]);
-  var level = (this.calculateLevel != null) ? this.calculateLevel(window, dataRect) : 0;
-  var tileInfos = this.tileManager.getTileInfos(dataRect.lambda, dataRect.phi, level, this.createUrl);
-  this.prevWindow_ = window;
-  this.prevTileInfos_ = tileInfos;
-  return tileInfos;
+  if ( 0 < textures.length ) {
+    mapView.imageProj.setCoordTypeData();
+    mapView.imageProj.setOpacity(this.opacity);
+    mapView.imageProj.prepareRenderSurface();
+    for (var k = 0; k < textures.length; k++ ) {
+      var texId = textures[k][0];
+      var rect = textures[k][1];
+      var clip = textures[k][2];
+      mapView.imageProj.renderSurfaceTexture(texId, rect, clip);
+    }
+  }
+  //
+  this.markValid();
 };
 
 
-MapView.prototype.requestImages_ = function(tileInfos) {
+TileTextureLayer.prototype.clearTileInfoCache_ = function() {
+  this.prevWindow_ = null;
+  this.prevTileInfos_ = null;
+  this.markInvalid();
+};
+
+TileTextureLayer.prototype.requestImages_ = function(gl, tileInfos) {
   var count = 0;
   for (var i = 0; i < tileInfos.length; ++i ) {
-    if ( this.imageCache.loadImageIfAbsent(tileInfos[i].url, tileInfos[i].rect) ) {
+    if ( this.imageCache.loadImageIfAbsent(gl, tileInfos[i].url, tileInfos[i].rect) ) {
       ++count;
     }
   }
   return count;
 };
 
-
-MapView.prototype.render_ = function(tileInfos) {
-  this.imageProj.clear(this.viewWindowManager_.canvasSize);
-  var targetTextures = [];
-  for (var i = 0; i < tileInfos.length; ++i ) {
-    var info = tileInfos[i];
-    var tex = this.imageCache.getTexture(info.url);
-    if ( tex ) {
-      targetTextures.push(tex);
+TileTextureLayer.prototype.getTileInfos_ = function(mapView) {
+  var window = mapView.viewWindowManager_.getViewWindow();
+  if ( this.prevTileInfos_ != null && this.prevWindow_ != null ) {
+    if (window[0] == this.prevWindow_[0] && window[1] == this.prevWindow_[1] &&
+      window[2] == this.prevWindow_[2] && window[3] == this.prevWindow_[3]) {
+        return this.prevTileInfos_;
     }
+    this.prevTileInfos_ = null;
+    this.prevWindow_ = null;
   }
-
-  var texCoords = this.viewWindowManager_.getNormalizedRectAsTriangleStrip();
-  this.imageProj.prepareRender(texCoords, this.viewWindowManager_.rect);
-  if ( 0 < targetTextures.length ) {
-    this.imageProj.renderTextures(targetTextures);
-  }
-  if ( 0 < this.graticuleInterval ) {
-    this.imageProj.renderGraticule(this.viewWindowManager_.rect, this.graticuleInterval);
-  }
-  //
-  if ( this.centerIcon_ ) {
-    var iconSize = this.viewWindowManager_.getNormalizedSize(this.centerIconSize_);
-    this.imageProj.prepareRender(texCoords, this.viewWindowManager_.rect);
-    this.imageProj.renderOverlays(this.centerIcon_, iconSize);
-  }
+  var dataRect = mapView.projection.inverseBoundingBox(window[0], window[1], window[2], window[3]);
+  var level = (this.tileManager.dataLevelDef != null) ? this.tileManager.dataLevelDef(window, dataRect) : 0;
+  var tileInfos = this.tileManager.getTileInfos(dataRect, level);
+  this.prevWindow_ = window;
+  this.prevTileInfos_ = tileInfos;
+  return tileInfos;
 };
 
+/* ------------------------------------------------------------ */
+
+/**
+ * PointTextureLayer
+ * @param {string} layerId
+ * @param {number} coordType
+ * @param {textureId} pointTextureId
+ * @param {object} style (option)
+ */
+var PointTextureLayer = function(layerId, coordType, pointTextureId, style) {
+  Layer.call(this, layerId, coordType);
+  this.pointTextureId = pointTextureId;
+  //
+  this.size = 48.0;
+  //
+  if (typeof style !== 'undefined') {
+    if ('size' in style) {
+      this.size = style.size;
+    }
+  }
+  //
+  this.data_ = [];
+};
+Object.setPrototypeOf(PointTextureLayer.prototype, Layer.prototype);
+
+PointTextureLayer.prototype.addPoint = function(x, y) {
+  this.data_.push(x, y);
+  this.markInvalid();
+};
+
+PointTextureLayer.prototype.addPoints = function(points) {
+  this.data_ = this.data_.concat(points);
+  this.markInvalid();
+};
+
+PointTextureLayer.prototype.clear = function() {
+  this.data_.splice(0, this.data_.length);
+  this.markInvalid();
+};
+
+PointTextureLayer.prototype.render = function(mapView) {
+  if ( 0 < this.data_.length ) {
+    mapView.imageProj.prepareRenderPoints();
+    mapView.imageProj.setCoordType(this.coordType);
+    mapView.imageProj.setPointSize(this.size);
+    mapView.imageProj.setPointTexture(this.pointTextureId);
+    mapView.imageProj.renderPoints(this.data_);
+  }
+  //
+  this.markValid();
+};
+
+/* ------------------------------------------------------------ */
+
+/**
+ * PolylineLayer
+ * @param {string} layerId
+ * @param {number} coordType
+ * @param {object} style (option)
+ */
+var PolylineLayer = function(layerId, coordType, style) {
+  Layer.call(this, layerId, coordType);
+  //
+  this.color = {r: 1.0, g: 1.0, b: 1.0, a: 1.0};
+  //
+  if (typeof style !== 'undefined') {
+    if ('color' in style) {
+      this.color = style.color;
+    }
+  }
+  //
+  this.data_ = [];
+};
+Object.setPrototypeOf(PolylineLayer.prototype, Layer.prototype);
+
+PolylineLayer.prototype.addPolyline = function(polyline) {
+  this.data_.push(polyline);
+  this.markInvalid();
+};
+
+PolylineLayer.prototype.clear = function() {
+  this.data_.splice(0, this.data_.length);
+  this.markInvalid();
+};
+
+PolylineLayer.prototype.render = function(mapView) {
+  if ( 0 < this.data_.length ) {
+    mapView.imageProj.prepareRenderPolyline();
+    mapView.imageProj.setCoordType(this.coordType);
+    mapView.imageProj.setColor(this.color);
+    for (var i = 0; i < this.data_.length; ++i) {
+      mapView.imageProj.renderPolyline(this.data_[i]);
+    }
+  }
+  //
+  this.markValid();
+};
+
+
+/* ------------------------------------------------------------ */
+
+/**
+ * GraticuleLayer
+ * @param {string} layerId
+ * @param {number} coordType
+ * @param {object} style (option)
+ */
+var GraticuleLayer = function(layerId, style) {
+  Layer.call(this, layerId, ProjShaderProgram.COORD_TYPE_DATA);
+  //
+  this.graticuleRenderer_ = null;
+  //
+  this.color = {r: 0.88, g: 0.88, b: 0.88, a: 1.0};
+  this.intervalDegrees = 20;   //  単位：度   0以下の場合は緯度経度線を描画しない
+  //
+  if (typeof style !== 'undefined') {
+    if ('color' in style) {
+      this.color = style.color;
+    }
+    if ('intervalDegrees' in style) {
+      this.intervalDegrees = style.intervalDegrees;
+    }
+  }
+};
+Object.setPrototypeOf(GraticuleLayer.prototype, Layer.prototype);
+
+GraticuleLayer.prototype.invalidate = function() {
+  this.graticuleRenderer_ = null;
+  this.markInvalid();
+};
+
+GraticuleLayer.prototype.render = function(mapView) {
+  if ( 0 < this.intervalDegrees ) {
+    if ( this.graticuleRenderer_ == null ) {
+      this.graticuleRenderer_ = new GraticuleRenderer(mapView.imageProj, mapView.projection);
+    }
+
+    mapView.imageProj.setCoordTypeData();
+    mapView.imageProj.setColor(this.color);
+    //  TODO 効率化、リファクタリング
+    var window = mapView.getWindow();
+    var dataRect = mapView.projection.inverseBoundingBox(window[0], window[1], window[2], window[3]);
+    this.graticuleRenderer_.renderLines(window, dataRect, this.intervalDegrees);
+  }
+  //
+  this.markValid();
+};
 
 /* -------------------------------------------------------------------------- */
 if (typeof module != 'undefined' && module.exports) {

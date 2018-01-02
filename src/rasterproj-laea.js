@@ -1,14 +1,20 @@
 /**
- * Raster Map Projection v0.0.13  2016-11-13
- * Copyright (C) 2016 T.Seno
+ * Raster Map Projection v0.0.22  2018-01-02
+ * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
  */
-"use strict";
+'use strict';
 
 if (typeof module!='undefined' && module.exports) {
   var ProjMath = require('./rasterproj-common.js');
 }
+
+// -----------------------------------------------------
+
+RasterMapProjection.createProjection = function(lam0, phi0, optDivN) {
+  return new ProjLAEA(lam0, phi0, optDivN);
+};
 
 // -----------------------------------------------------
 
@@ -137,10 +143,10 @@ ProjDiscreteMath.prototype.X_upper = function(idx) {
  * @param {object} option (divN)
  * @constructor
  */
-var ProjLAEA = function(lam0, phi0, opt_divn) {
+var ProjLAEA = function(lam0, phi0, optDivN) {
   this.lam0 = lam0;
   this.phi0 = phi0;
-  this.divN_ = (typeof opt_divn !== 'undefined') ? opt_divn : 180;
+  this.divN_ = (typeof optDivN !== 'undefined') ? optDivN : 180;
   //
   this.dMath_ = new ProjDiscreteMath(this.divN_);
   this.sin_phi0_ = Math.sin(phi0);
@@ -150,14 +156,48 @@ var ProjLAEA = function(lam0, phi0, opt_divn) {
 /**
  * 値域を表す矩形
  */
-ProjLAEA.RANGE_RECTANGLE = [ -2.0, -2.0, 2.0, 2.0 ];
+ProjLAEA.RANGE_RECTANGLE = [-2.0, -2.0, 2.0, 2.0];
 
+/**
+ * @return {Object}
+ */
 ProjLAEA.prototype.getRange = function() {
   return ProjLAEA.RANGE_RECTANGLE.slice(0);
 };
 
+/**
+ * @return {GeoCoord}
+ */
 ProjLAEA.prototype.getProjCenter = function() {
-  return { lambda: this.lam0, phi: this.phi0 };
+  return {lambda: this.lam0, phi: this.phi0};
+};
+
+/**
+ * @param {Float} lam
+ * @param {Float} phi
+ */
+ProjLAEA.prototype.setProjCenter = function(lam, phi) {
+  this.lam0 = lam;
+  this.phi0 = phi;
+  this.sin_phi0_ = Math.sin(phi);
+  this.cos_phi0_ = Math.cos(phi);
+};
+
+/**
+ * @param {Float} x
+ * @param {Float} y
+ * @param {Float} rate (option)
+ */
+ProjLAEA.prototype.checkXYDomain = function(x, y, rate) {
+  var lim = 2.0;
+  if ( rate != null ) {
+    lim *= rate;
+  }
+  if ( Math.abs(x) < lim && Math.abs(y) < lim ) {
+    return true;
+  }
+  var r2 = x * x + y * y;
+  return r2 < lim * lim;
 };
 
 /**
@@ -180,7 +220,7 @@ ProjLAEA.prototype.forward = function(lambda, phi) {
   var k = Math.sqrt(2 / c);
   var x = k * cos_phi * sin_lam;
   var y = k * ( this.cos_phi0_ * sin_phi - this.sin_phi0_ * cos_phi * cos_lam );
-  return { x:x, y:y };
+  return {x: x, y: y};
 };
 
 /**
@@ -194,7 +234,7 @@ ProjLAEA.prototype.inverse = function(x, y) {
   if ( 4.0 < rh2 )   return null;
 
   var rho = Math.sqrt(rh2);
-  if ( rho < ProjMath.EPSILON )  return { lambda: this.lam0, phi: this.phi0 };
+  if ( rho < ProjMath.EPSILON )  return {lambda: this.lam0, phi: this.phi0};
 
   var c_rh = 2 * Math.asin(ProjMath.clamp(rho/2, -1, 1));
 
@@ -215,7 +255,7 @@ ProjLAEA.prototype.inverse = function(x, y) {
   if ( lam < -Math.PI || Math.PI <= lam ) {
     lam -= 2 * Math.PI * Math.floor((lam + Math.PI) / (2*Math.PI));
   }
-  return { lambda: lam, phi: phi };
+  return {lambda: lam, phi: phi};
 };
 
 ProjLAEA.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
@@ -235,33 +275,33 @@ ProjLAEA.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
 
     //  N極,S極の双方を含む場合
     if ( containsNorthPole && containsSouthPole ) {
-      return { lambda: [ -Math.PI, +Math.PI ], phi: [ -Math.PI/2, +Math.PI/2 ] };
+      return {lambda: [-Math.PI, +Math.PI], phi: [-Math.PI/2, +Math.PI/2]};
     }
 
     //  N極,S極のどちらか一方を含む場合
     if ( containsNorthPole || containsSouthPole ) {
       var range = this.inversePhiRange_([x_min, x_max], [y_min, y_max]);
       if ( containsNorthPole ) {
-        return { lambda: [-Math.PI, +Math.PI], phi: [range[0], Math.PI/2] };
+        return {lambda: [-Math.PI, +Math.PI], phi: [range[0], Math.PI/2]};
       } else {
-        return { lambda: [-Math.PI, +Math.PI], phi: [-Math.PI/2, range[1]] };
+        return {lambda: [-Math.PI, +Math.PI], phi: [-Math.PI/2, range[1]]};
       }
     }
 
     //  N極から上方への半直線、あるいはS極から下方への半直線を跨ぐ場合
     if ( y_max < ys || yn < y_min ) {
       var rangeMinus1 = this.inverseLambdaRangeAtY_([x_min, -ProjMath.EPSILON], [y_min, y_max]);
-      var rangeMinus2 = this.inverseLambdaRangeAtX_([y_min, y_max], [ x_min ]);
+      var rangeMinus2 = this.inverseLambdaRangeAtX_([y_min, y_max], [x_min]);
       var rangePlus1 = this.inverseLambdaRangeAtY_([ProjMath.EPSILON, x_max], [y_min, y_max]);
-      var rangePlus2 = this.inverseLambdaRangeAtX_([y_min, y_max], [ x_max ]);
+      var rangePlus2 = this.inverseLambdaRangeAtX_([y_min, y_max], [x_max]);
 
       var rangeMinus = this.mergeRange_(rangeMinus1, rangeMinus2);
       var rangePlus = this.mergeRange_(rangePlus1, rangePlus2);
 
-      var lamRange1 = [ rangePlus[0], rangeMinus[1] + 2 * Math.PI ];
+      var lamRange1 = [rangePlus[0], rangeMinus[1] + 2 * Math.PI];
       var phiRange1 = this.inversePhiRange_([x_min, x_max], [y_min, y_max]);
       lamRange1 = this.normalizeLambdaRange_(lamRange1);
-      return { lambda: lamRange1, phi: phiRange1 };
+      return {lambda: lamRange1, phi: phiRange1};
     }
   }
 
@@ -269,7 +309,7 @@ ProjLAEA.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
   var phiRange2 = this.inversePhiRange_([x_min, x_max], [y_min, y_max]);
   var lamRange2 = this.inverseLambdaRange_([x_min, x_max], [y_min, y_max]);
   lamRange2 = this.normalizeLambdaRange_(lamRange2);
-  return { lambda: lamRange2, phi: phiRange2 };
+  return {lambda: lamRange2, phi: phiRange2};
 };
 
 
@@ -296,7 +336,7 @@ ProjLAEA.prototype.normalizeLambdaRange_ = function(range) {
     return range;
   }
   var d = 2 * Math.PI * Math.floor( (lam + Math.PI) / (2 * Math.PI) );
-  return [ range[0] - d, range[1] - d ];
+  return [range[0] - d, range[1] - d];
 };
 
 
@@ -424,7 +464,7 @@ ProjLAEA.prototype.inverseLambdaAtX_ = function(y_idx, x) {
     var y_max = (yl <= yu) ? yu : yl;
     var y_min = (yl <= yu) ? yl : yu;
     var range = ProjMath.atan2Range({min: x, max: x}, {min: y_min, max: y_max});
-    return [ range.min + this.lam0, range.max + this.lam0 ];
+    return [range.min + this.lam0, range.max + this.lam0];
   }
 
   var t1l = this.cos_phi0_ * this.dMath_.R_cotR_lower(y_idx, x);
@@ -441,7 +481,7 @@ ProjLAEA.prototype.inverseLambdaAtX_ = function(y_idx, x) {
   var t_min = t1_min + t2_min;
 
   var r = ProjMath.atan2Range({min: x, max: x}, {min: t_min, max: t_max});
-  return [ r.min + this.lam0, r.max + this.lam0 ];
+  return [r.min + this.lam0, r.max + this.lam0];
 };
 
 
@@ -451,7 +491,7 @@ ProjLAEA.prototype.inverseLambdaAtY_ = function(x_idx, y) {
     var x_min = this.dMath_.X_lower(x_idx);
     var x_max = this.dMath_.X_upper(x_idx);
     var range = ProjMath.atan2Range({min: x_min, max: x_max}, {min: sign * y, max: sign * y});
-    return [ range.min + this.lam0, range.max + this.lam0 ];
+    return [range.min + this.lam0, range.max + this.lam0];
   }
   var t1 = this.cos_phi0_ * this.dMath_.R_cotR_lower(x_idx, y) - this.sin_phi0_ * y;
   var t2 = this.cos_phi0_ * this.dMath_.R_cotR_upper(x_idx, y) - this.sin_phi0_ * y;
@@ -462,9 +502,8 @@ ProjLAEA.prototype.inverseLambdaAtY_ = function(x_idx, y) {
   var s_max = this.dMath_.X_upper(x_idx);
 
   var r = ProjMath.atan2Range({min: s_min, max: s_max}, {min: t_min, max: t_max});
-  return [ r.min + this.lam0, r.max + this.lam0 ];
+  return [r.min + this.lam0, r.max + this.lam0];
 };
-
 
 
 ProjLAEA.prototype.inversePhiAtY_ = function(x_idx, y) {
@@ -481,9 +520,8 @@ ProjLAEA.prototype.inversePhiAtY_ = function(x_idx, y) {
   var t_max = ProjMath.clamp(t1_max + t2_max, -1, 1);
   var t_min = ProjMath.clamp(t1_min + t2_min, -1, 1);
 
-  return [ Math.asin(t_min), Math.asin(t_max) ];
+  return [Math.asin(t_min), Math.asin(t_max)];
 };
-
 
 
 ProjLAEA.prototype.inversePhiAtX_ = function(y_idx, x) {
@@ -508,124 +546,126 @@ ProjLAEA.prototype.inversePhiAtX_ = function(y_idx, x) {
   var t_max = ProjMath.clamp(t1_max + t2_max, -1, 1);
   var t_min = ProjMath.clamp(t1_min + t2_min, -1, 1);
 
-  return [ Math.asin(t_min), Math.asin(t_max) ];
+  return [Math.asin(t_min), Math.asin(t_max)];
 };
 
-
-/* ------------------------------------------------------------ */
 
 /**
- * Projection of raster data.
- * @param {object} gl WebGL instance.
- * @param {number} canvasWidth
- * @param {number} canvasHeight
- * @constructor
+ * @return String
  */
-var RasterProjLAEA = function() {
-  this.shader_ = null;
-  //
-  this.backColor_ = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-  this.graticuleColor_ = { r: 0.88, g: 0.88, b: 0.88, a: 1.0};
-  this.alpha_ = 1.0;
-  //
-  this.projection = new ProjLAEA(0.0, 0.0);   // public
-  //
-  this.numberOfPoints = 64;
+ProjLAEA.prototype.getVertexShaderStr = function() {
+  return ProjLAEA.VERTEX_SHADER_STR;
 };
 
-RasterProjLAEA.prototype.init = function(gl) {
-  this.shader_ = new RasterProjShaderProgram(gl);
-
-  var ret = this.shader_.init(RasterProjLAEA.VERTEX_SHADER_STR, RasterProjLAEA.FRAGMENT_SHADER_STR);
-  if ( !ret ) {
-    return false;
-  }
-
-  var numberOfItems = 4 + 4 + this.numberOfPoints;
-  this.shader_.initVBO(numberOfItems);
-  this.shader_.setClearColor(this.backColor_);
-  return true;
+/**
+ * @return String
+ */
+ProjLAEA.prototype.getFragmentShaderStr = function() {
+  return ProjLAEA.FRAGMENT_SHADER_STR;
 };
 
-RasterProjLAEA.prototype.setAlpha = function(alpha) {
-  this.alpha_ = alpha;
-};
-
-RasterProjLAEA.prototype.setProjCenter = function(lam0, phi0) {
-  this.projection = new ProjLAEA(lam0, phi0);
-};
-
-RasterProjLAEA.prototype.clear = function(canvasSize) {
-  this.shader_.clear(canvasSize);
-};
-
-RasterProjLAEA.prototype.prepareRender = function(texCoords, viewRect) {
-  this.shader_.prepareRender(viewRect, texCoords, this.projection.lam0, this.projection.phi0, this.alpha_, this.graticuleColor_);
-};
-
-RasterProjLAEA.prototype.renderTextures = function(textureInfos) {
-  this.shader_.setRenderType(RasterProjShaderProgram.RENDER_TYPE_TEXTURE);
-  for ( var i = 0; i < textureInfos.length; ++i ) {
-    var texture = textureInfos[i][0];
-    var region = textureInfos[i][1];
-    this.shader_.renderTexture(texture, region);
-  }
-};
-
-RasterProjLAEA.prototype.renderOverlays = function(centerIcon, iconSize) {
-  this.shader_.setRenderType(RasterProjShaderProgram.RENDER_TYPE_POINT_TEXTURE);
-  this.shader_.renderIconTexture(centerIcon, iconSize, { x:0.0, y:0.0});
-};
-
-RasterProjLAEA.prototype.renderGraticule = function(viewRect, interval) {
-  this.shader_.setRenderType(RasterProjShaderProgram.RENDER_TYPE_POLYLINE);
-
-  //  緯度経度線
-  var graticuleGenerator = new GraticuleGenerator(this.projection, this.numberOfPoints, interval);
-  var lines = graticuleGenerator.generateLines(viewRect);
-  for (var k = 0; k < lines.length; ++k) {
-    this.shader_.renderPolyline(lines[k]);
-  }
-};
-
-
-RasterProjLAEA.VERTEX_SHADER_STR = [
+/**
+ *
+ */
+ProjLAEA.VERTEX_SHADER_STR = [
 
   'precision highp float;',
-  'attribute vec3 aPosition;',
-  'attribute vec2 aTexCoord;',
-  'varying vec2 vTexCoord;',
+  'attribute float aCoordX;',
+  'attribute float aCoordY;',
+  'uniform mat3 uFwdTransform;',
+  'uniform vec2 uProjCenter;',
+
+  'varying vec2 vCoord;',
+  'varying float vInRange;',
+
+  'uniform float uPointSize;',
+  'uniform lowp int uCoordType;',      // 入力座標系種別  0: Data Coordinates, 1: XY Coordinates, 2: Screen
+  'uniform lowp int uTextureType;',    //  0:NotUse, 1:PointTexture, 2:SurfaceTexture
+
+  'const float pi = 3.141592653589793;',
+  //'const float epsilon = 0.00000001;',
+  'const float epsilon = 0.001;',
+  'const float xyDomain = 0.86 * 0.707106781 * pi;',   //  range: PI/sqrt(2)
+
+  'vec2 proj_forward(vec2 center, vec2 lp)',
+  '{',
+  '  float sinPhi0 = sin(center.y);',
+  '  float cosPhi0 = cos(center.y);',
+
+  '  float sinPhi = sin(lp.y);',
+  '  float cosPhi = cos(lp.y);',
+  '  float sinLam = sin(lp.x - center.x);',
+  '  float cosLam = cos(lp.x - center.x);',
+
+  '  float v = sinPhi0 * sinPhi + cosPhi0 * cosPhi * cosLam;',
+
+  '  float x = cosPhi * sinLam;',
+  '  float y = cosPhi0 * sinPhi - sinPhi0 * cosPhi * cosLam;',
+
+  '  if ( v < -1.0 + epsilon ) {',
+  '    return 2.0 * normalize(vec2(x, y));',   //  対蹠点
+  '  }',
+
+  '  float k = sqrt(2.0 / (1.0 + v));',
+
+  '  return k * vec2(x, y);',
+  '}',
+
+  'float check_xy_range(vec2 xy)',
+  '{',
+  '  return 1.0 - step(xyDomain, length(xy));',
+  '}',
 
   'void main()',
   '{',
-  '  gl_Position = vec4(aPosition.x, aPosition.y, aPosition.z, 1.0);',
-  '  vTexCoord = aTexCoord;',
-  '}'
+  '  vInRange = 1.0;',
+  '  vec3 pos;',
+  '  if ( uTextureType == 2 || uCoordType == 2 ) {',  //  Screen or Surface Texture
+  '    pos = vec3(aCoordX, aCoordY, 1.0);',
+  '  } else if ( uCoordType == 1 ) {',               //  XY Coord
+  '    pos = uFwdTransform * vec3(aCoordX, aCoordY, 1.0);',
+  '    vInRange = check_xy_range(vec2(aCoordX, aCoordY));',
+  '  } else {',                                      //  Data Coord
+  '    vec2 xy = proj_forward(uProjCenter, vec2(aCoordX, aCoordY));',
+  '    vInRange = check_xy_range(xy);',
+  '    pos = uFwdTransform * vec3(xy.x, xy.y, 1.0);',
+  '  }',
+  '  vCoord = pos.xy;',
+  '  gl_Position = vec4(pos, 1.0);',
+  '  gl_PointSize = uPointSize;',
+  '}',
 
-].join("\n");
+].join('\n');
 
 
-RasterProjLAEA.FRAGMENT_SHADER_STR = [
+/**
+ *
+ */
+ProjLAEA.FRAGMENT_SHADER_STR = [
 
   'precision highp float;',
-  'uniform sampler2D uTexture;',
-  'varying vec2 vTexCoord;',
-  'uniform lowp int uRenderType;',
-  'uniform vec2 uProjCenter;',
-  'uniform vec2 uViewXY1;',
-  'uniform vec2 uViewXY2;',
+  'uniform mat3 uInvTransform;',
   'uniform vec2 uDataCoord1;',
   'uniform vec2 uDataCoord2;',
-  'uniform vec2 uFixedTextureSize;',    //  アイコンサイズ（画面比）
-  'uniform vec4 uRenderColor;',
-  'uniform float uAlpha;',
+  'uniform vec2 uClipCoord1;',
+  'uniform vec2 uClipCoord2;',
+  'uniform lowp int uCoordType;',      // 入力座標系種別  0: Data Coordinates, 1: XY Coordinates, 2: Screen
+  'uniform lowp int uTextureType;',    //  0:NotUse, 1:PointTexture, 2:SurfaceTexture
+  'uniform sampler2D uTexture;',
+  'uniform vec2 uProjCenter;',
+  'uniform vec4 uColor;',
+  'uniform float uOpacity;',
 
-  'const float pi = 3.14159265;',
+  'varying vec2 vCoord;',
+  'varying float vInRange;',
+
+  'const float pi = 3.141592653589793;',
   'const float epsilon = 0.00000001;',
+  //'const float epsilon = 0.001;',
   'const float blurRatio = 0.015;',
   'const float xyRadius = 2.0;',
 
-  'vec2 proj_invserse(vec2 center, vec2 xy)',
+  'vec2 proj_inverse(vec2 center, vec2 xy)',
   '{',
   '  float sinPhi0 = sin(center.y);',
   '  float cosPhi0 = cos(center.y);',
@@ -657,43 +697,65 @@ RasterProjLAEA.FRAGMENT_SHADER_STR = [
 
   'void main()',
   '{',
-  //  画面上の点 vTexCoord ([-1,-1]-[1,1]) をXY平面上の点にマッピング
-  '  vec2 xy = mix(uViewXY1, uViewXY2, vTexCoord);',
-
-  '  if ( uRenderType == 0 ) {',    //  Texture
-
-  '    vec2 lp = proj_invserse(uProjCenter, xy);',
-  '    vec2 ts = (lp - uDataCoord1) / (uDataCoord2 - uDataCoord1);',
-  '    float inXY = inner_xy(xy);',
-  '    vec2 inData = step(vec2(0.0, 0.0), ts) - step(vec2(1.0, 1.0), ts);',
-  '    vec4 OutputColor = texture2D(uTexture, ts) * inData.x * inData.y * inXY;',
-  '    OutputColor.a *= clamp(uAlpha, 0.0, 1.0);',
-  '    gl_FragColor = OutputColor;',
-
-  '  } else if ( uRenderType == 1 ) {',  //  PointTexture (icon)
-
-  //   XY平面上の点を画像上の点[0,0]-[1,1]にマッピングする
-  '    vec2 fixedTextureSizeXY = uFixedTextureSize * (uViewXY2 - uViewXY1);',
-  '    vec2 r1 = vec2(uDataCoord1.x - 0.5 * fixedTextureSizeXY.x, uDataCoord1.x - 0.5 * fixedTextureSizeXY.y);',
-  '    vec2 ts = (xy - r1) / fixedTextureSizeXY;',
-  '    vec2 inData = (step(vec2(0.0, 0.0), ts) - step(vec2(1.0, 1.0), ts));',
-  '    vec4 OutputColor = texture2D(uTexture, ts) * inData.x * inData.y;',
-  '    gl_FragColor = OutputColor;',
-
-  '  } else if ( uRenderType == 2 ) {',  //  Polyline
-
-  '    gl_FragColor = uRenderColor;',
-
+  '  if ( vInRange < 0.5 ) {',
+  '    discard;',
+  '    return;',
   '  }',
-  '}'
 
-].join("\n");
+  '  vec4 outColor;',
+  '  bool isDiscard = false;',
 
+  '  if ( uTextureType == 2 ) {',   //   Surface Texture
+  '    float inXY = 1.0;',
+  '    vec2 coord;',
+  '    if ( uCoordType == 2 ) {',         //  Screen Coord
+  '      coord = vCoord;',
+  '    } else {',
+  '      vec3 viewCoord = uInvTransform * vec3(vCoord.x, vCoord.y, 1.0);',
+  '      inXY = inner_xy(viewCoord.xy);',
+  '      if ( 0.0 < inXY ) {',
+  '        if ( uCoordType == 1 ) {',  //  XY Coord
+  '          coord = viewCoord.xy;',
+  '        } else if ( uCoordType == 0 ) {',   //  Data Coord
+  '          coord = proj_inverse(uProjCenter, viewCoord.xy);',
+  '        }',
+  '      } else {',
+  '        isDiscard = true;',
+  '        coord = vec2(0.0, 0.0);',
+  '      }',
+  '    }',
+
+  '    if ( !isDiscard ) {',
+  '      vec2 ts = (coord - uDataCoord1) / (uDataCoord2 - uDataCoord1);',
+  '      if ( uClipCoord1.x <= ts.x && uClipCoord1.y <= ts.y && ts.x <= uClipCoord2.x && ts.y <= uClipCoord2.y) {',
+  '        outColor = texture2D(uTexture, vec2(ts.x, 1.0 - ts.y)) * inXY;',
+  '        outColor.a = outColor.a * uOpacity;',
+  '      } else {',
+  '        isDiscard = true;',
+  '      }',
+  '    }',
+
+  '  } else if ( uTextureType == 1 ) {',          //   Point Texture
+  '    outColor = texture2D(uTexture, gl_PointCoord);',
+  '    isDiscard = (outColor.a == 0.0);',
+
+  '  } else {',                           //  Not Texture
+  '    outColor = uColor;',
+  '    isDiscard = (outColor.a == 0.0);',
+  '  }',
+
+  '  if ( isDiscard ) {',
+  '    discard;',
+  '  } else {',
+  '    gl_FragColor = outColor;',
+  '  }',
+  '}',
+
+].join('\n');
 
 
 /* -------------------------------------------------------------------------- */
 if (typeof module != 'undefined' && module.exports) {
-  module.exports = RasterProjLAEA;
+  module.exports = ProjLAEA;
   module.exports.ProjDiscreteMath = ProjDiscreteMath;
-  module.exports.ProjLAEA = ProjLAEA;
 }

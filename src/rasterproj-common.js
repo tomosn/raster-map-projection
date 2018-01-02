@@ -1,10 +1,11 @@
 /**
- * Raster Map Projection v0.0.13  2016-11-13
- * Copyright (C) 2016 T.Seno
+ * Raster Map Projection v0.0.22  2018-01-02
+ * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
+ *
  */
-"use strict";
+'use strict';
 
 
 if ( !Math.cosh ) {
@@ -18,6 +19,20 @@ if ( !Math.sinh ) {
   };
 }
 
+// -----------------------------------------------------
+
+var RasterMapProjection = function() {};
+
+RasterMapProjection.createProjection = function(lam0, phi0, optDivN) {
+  console.log('override!!');
+  return null;
+};
+
+RasterMapProjection.createShaderProgram = function(gl) {
+  return new ProjShaderProgram(gl);
+};
+
+
 /* ------------------------------------------------------------ */
 
 /**
@@ -26,23 +41,53 @@ if ( !Math.sinh ) {
  * GeoCoord : { lambda: Float, phi: Float }
  * Rectangle : { x1: Float, y1: Float, x2: Float, y2: Float }
  * Range : { min: Float, max: Float }
+ * Color : { r: Float, g: Float, b: Float, a: Float }
  */
 
 /* ------------------------------------------------------------ */
 
-var CommonUtils = function() {};
+var ImageUtils = function() {};
 
 /**
- * Copy
+ * createTexture
  */
-CommonUtils.clone = function(src) {
-  var dst = {};
-  for (var prop in src) {
-    dst[prop] = src[prop];
-  }
-  return dst;
+ImageUtils.createTexture = function(gl, img) {
+  var tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return tex;
 };
 
+/* ------------------------------------------------------------ */
+
+/**
+ * MathUtils
+ */
+var MathUtils = function() {};
+
+/**
+ * @param src : source rect x1:Float, y1:Float, x2:Float, y2:Float
+ * @param dst : destination rect x1:Float, y1:Float, x2:Float, y2:Float
+ */
+MathUtils.getTransform = function(src, dst) {
+  var dx = src.x2 - src.x1;
+  var dy = src.y2 - src.y1;
+  var sx = (dst.x2 - dst.x1) / dx;
+  var sy = (dst.y2 - dst.y1) / dy;
+  var tx = (dst.x1 * src.x2 - src.x1 * dst.x2) / dx;
+  var ty = (dst.y1 * src.y2 - src.y1 * dst.y2) / dy;
+  return [sx, 0.0, 0.0,   0.0, sy, 0.0,  tx, ty, 1.0];
+};
 
 /* ------------------------------------------------------------ */
 
@@ -82,42 +127,42 @@ ProjMath.atan2Range = function(yRange, xRange) {
   //  y方向正の領域内
   if (0 <= ymin) {
     if (0 < xmin) {
-      return { min: Math.atan2(ymin, xmax), max: Math.atan2(ymax, xmin) };
+      return {min: Math.atan2(ymin, xmax), max: Math.atan2(ymax, xmin)};
     }
     if (xmax < 0) {
-      return { min: Math.atan2(ymax, xmax), max: Math.atan2(ymin, xmin) };
+      return {min: Math.atan2(ymax, xmax), max: Math.atan2(ymin, xmin)};
     }
-    return { min: Math.atan2(ymin, xmax), max: Math.atan2(ymin, xmin) };
+    return {min: Math.atan2(ymin, xmax), max: Math.atan2(ymin, xmin)};
   }
 
   //  y方向負の領域内
   if (ymax < 0) {
     if (0 < xmin) {
-      return { min: Math.atan2(ymin, xmin), max: Math.atan2(ymax, xmax) };
+      return {min: Math.atan2(ymin, xmin), max: Math.atan2(ymax, xmax)};
     }
     if (xmax < 0) {
-      return { min: Math.atan2(ymax, xmin), max: Math.atan2(ymin, xmax) };
+      return {min: Math.atan2(ymax, xmin), max: Math.atan2(ymin, xmax)};
     }
-    return { min: Math.atan2(ymax, xmin), max: Math.atan2(ymax, xmax) };
+    return {min: Math.atan2(ymax, xmin), max: Math.atan2(ymax, xmax)};
   }
 
   //  x軸上の場合（原点を内部に含まない）
   if (0 < xmin) {
-    return { min: Math.atan2(ymin, xmin), max: Math.atan2(ymax, xmin) };
+    return {min: Math.atan2(ymin, xmin), max: Math.atan2(ymax, xmin)};
   }
   if (xmax < 0) {
     //  周期性の考慮
     var t1 = Math.atan2(ymax, xmax);
     var t2 = Math.atan2(ymin, xmax);
     if (Math.PI <= t1) {
-      return { min: t1 - 2 * Math.PI, max: t2 };
+      return {min: t1 - 2 * Math.PI, max: t2};
     } else {
-      return { min: t1, max: t2 + 2 * Math.PI };
+      return {min: t1, max: t2 + 2 * Math.PI};
     }
   }
 
   //  原点を内部に含む
-  return { min: -Math.PI, max: Math.PI };
+  return {min: -Math.PI, max: Math.PI};
 };
 
 
@@ -125,7 +170,7 @@ ProjMath.toLambdaPhi = function(vec3d) {
   var r = Math.sqrt(vec3d[0] * vec3d[0] + vec3d[1] * vec3d[1]);
   var lam = Math.atan2( vec3d[1], vec3d[0] );
   var phi = Math.atan2( vec3d[2], r );
-  return { lambda: lam, phi: phi };
+  return {lambda: lam, phi: phi};
 };
 
 
@@ -148,41 +193,370 @@ ProjMath.neighborPoint = function(pt1, pt2) {
 
 /* ------------------------------------------------------------ */
 
-var RasterProjShaderProgram = function(gl) {
+/**
+ * ProjShaderProgram
+ * @constructor
+ */
+var ProjShaderProgram = function(gl) {
   this.gl_ = gl;
   this.vbo_ = null;
   this.program_ = null;
   //
-  this.locTexture_ = null;
-  this.locAlpha_ = null;
-  this.locProjCenter_ = null;
-  this.locViewXY1_ = null;
-  this.locViewXY2_ = null;
-  this.locDataCoord1_ = null;
-  this.locDataCoord2_ = null;
-  this.locFixedTextureSize_ = null;
-  this.locRenderColor_ = null;
-  this.locRenderType_ = null;
+  this.coordsBuffer_ = null;
   //
-  this.locTranslateY_ = null;   //  TODO tmerc独自の処理の調整
+  this.locAttrCoordX_ = null;
+  this.locAttrCoordY_ = null;
+  this.locUnifFwdTransform_ = null;
+  this.locUnifInvTransform_ = null;
+  this.locUnifProjCenter_ = null;
+  this.locUnifDataCoord1_ = null;
+  this.locUnifDataCoord2_ = null;
+  this.locUnifClipCoord1_ = null;
+  this.locUnifClipCoord2_ = null;
+  this.locUnifPointSize_ = null;
+  this.locUnifCoordType_ = null;
+  this.locUnifColor_ = null;
+  this.locUnifOpacity_ = null;
+  this.locUnifTextureType_ = null;
+  this.locUnifTexture_ = null;
 };
 
-RasterProjShaderProgram.DIMENSION = 2;
+/**
+ *
+ */
+ProjShaderProgram.SCREEN_RECT = {x1: -1.0, y1: -1.0, x2: +1.0, y2: +1.0};
 
-RasterProjShaderProgram.UNIT_RECT_TRIANGLE_STRIP = new Float32Array([
-    -1.0, -1.0,
+/**
+ *
+ */
+ProjShaderProgram.DIMENSION = 2;
+
+/**
+ *
+ */
+ProjShaderProgram.POINTS_BUFFER_SIZE = 64;
+
+/**
+ *
+ */
+ProjShaderProgram.COORD_TYPE_DATA = 0;          //  データ座標系
+
+/**
+ *
+ */
+ProjShaderProgram.COORD_TYPE_XY = 1;            //  XY座標系
+
+/**
+ *
+ */
+ProjShaderProgram.COORD_TYPE_SCREEN = 2;        //  SCREEN座標系（テクスチャ描画用）
+
+/**
+ *
+ */
+ProjShaderProgram.TEXTURE_TYPE_NONE = 0;        //  テクスチャ未使用
+
+/**
+ *
+ */
+ProjShaderProgram.TEXTURE_TYPE_POINT = 1;        //  PointTexture
+
+/**
+ *
+ */
+ProjShaderProgram.TEXTURE_TYPE_SURFACE = 2;        //  SurfaceTexture
+
+
+/**
+ * @param color
+ */
+ProjShaderProgram.prototype.setColor = function(color) {
+  this.gl_.uniform4f(this.locUnifColor_, color.r, color.g, color.b, color.a);
+};
+
+/**
+ * @param x1
+ * @param y1
+ * @param x2
+ * @param y2
+ */
+ProjShaderProgram.prototype.setViewWindow = function(x1, y1, x2, y2) {
+  //  uFwdTransform : [(x1, y1)-(x2, y2)] -> [(-1.0, -1.0)-(+1.0, +1.0)]
+  //  uInvTransform : [(-1.0, -1.0)-(+1.0, +1.0)] -> [(x1, y1)-(x2, y2)]
+  var dx = x2 - x1;
+  var dy = y2 - y1;
+  var mx = x1 + x2;
+  var my = y1 + y2;
+
+  var mat = [2.0/dx, 0.0, 0.0,   0.0, 2.0/dy, 0.0,  -mx/dx, -my/dy, 1.0];
+  var inv = [dx/2.0, 0.0, 0.0,   0.0, dy/2.0, 0.0,  mx/2.0, my/2.0, 1.0];
+
+  this.gl_.uniformMatrix3fv(this.locUnifFwdTransform_, false, mat);
+  this.gl_.uniformMatrix3fv(this.locUnifInvTransform_, false, inv);
+};
+
+/**
+ * @param lam0
+ * @param phi0
+ */
+ProjShaderProgram.prototype.setProjCenter = function(lam0, phi0) {
+  this.gl_.uniform2f(this.locUnifProjCenter_, lam0, phi0);
+};
+
+/**
+ * @param sizef
+ */
+ProjShaderProgram.prototype.setPointSize = function(sizef) {
+  this.gl_.uniform1f(this.locUnifPointSize_, sizef);
+};
+
+/**
+ * @param texture or null
+ */
+ProjShaderProgram.prototype.setPointTexture = function(texture) {
+  if ( texture != null ) {
+    this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_POINT);
+    this.bindTexture(texture);
+  } else {
+    this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+    this.bindTexture(null);
+  }
+};
+
+/**
+ *
+ */
+ProjShaderProgram.prototype.setCoordType = function(type) {
+  this.gl_.uniform1i(this.locUnifCoordType_, type);
+};
+
+/**
+ *
+ */
+ProjShaderProgram.prototype.setCoordTypeData = function() {
+  this.gl_.uniform1i(this.locUnifCoordType_, ProjShaderProgram.COORD_TYPE_DATA);
+};
+
+/**
+ *
+ */
+ProjShaderProgram.prototype.setCoordTypeXY = function() {
+  this.gl_.uniform1i(this.locUnifCoordType_, ProjShaderProgram.COORD_TYPE_XY);
+};
+
+/**
+ *
+ */
+ProjShaderProgram.prototype.setCoordTypeScreen = function() {
+  this.gl_.uniform1i(this.locUnifCoordType_, ProjShaderProgram.COORD_TYPE_SCREEN);
+};
+
+/**
+ * @param color
+ */
+ProjShaderProgram.prototype.setClearColor = function(color) {
+  this.gl_.clearColor(color.r, color.g, color.b, color.a);
+  this.gl_.enable(this.gl_.BLEND);
+};
+
+/**
+ * @param canvasSize
+ */
+ProjShaderProgram.prototype.clear = function(canvasSize) {
+  this.gl_.clear(this.gl_.COLOR_BUFFER_BIT);
+  this.gl_.viewport(0, 0, canvasSize.width, canvasSize.height);
+};
+
+/**
+ * @param opacity
+ */
+ProjShaderProgram.prototype.setOpacity = function(opacity) {
+  this.gl_.uniform1f(this.locUnifOpacity_, opacity);
+};
+
+/**
+ * @param texture
+ */
+ProjShaderProgram.prototype.bindTexture = function(texture) {
+  this.gl_.activeTexture(this.gl_.TEXTURE0);
+  this.gl_.bindTexture(this.gl_.TEXTURE_2D, texture);
+};
+
+/**
+ * @param textureType
+ */
+ProjShaderProgram.prototype.setTextureType_ = function(textureType) {
+  this.gl_.uniform1i(this.locUnifTextureType_, textureType);
+};
+
+/**
+ * @param viewRect
+ */
+ProjShaderProgram.prototype.prepareRenderSurface = function() {
+  this.gl_.enableVertexAttribArray(this.locAttrCoordX_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordX_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 0);
+  this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 4);
+
+  var data = new Float32Array([
+    // Screen(x,y)
     -1.0, +1.0,
+    -1.0, -1.0,
+    +1.0, +1.0,
     +1.0, -1.0,
-    +1.0, +1.0
   ]);
+  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, data);
 
+  this.gl_.activeTexture(this.gl_.TEXTURE0);
 
-RasterProjShaderProgram.RENDER_TYPE_TEXTURE = 0;        // dim=2, dataType=GeoGraphic
-RasterProjShaderProgram.RENDER_TYPE_POINT_TEXTURE = 1;  // dim=0, dataType=XYCoordinates
-RasterProjShaderProgram.RENDER_TYPE_POLYLINE = 2;       // dim=1, dataType=??
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_SURFACE);
+  this.bindTexture(null);
+};
 
+/**
+ *
+ */
+ProjShaderProgram.prototype.prepareRenderPoints = function() {
+  this.gl_.enableVertexAttribArray(this.locAttrCoordX_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordX_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 0);
+  this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 4);
 
-RasterProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+  this.bindTexture(null);
+};
+
+/**
+ *
+ */
+ProjShaderProgram.prototype.prepareRenderPolyline = function() {
+  this.gl_.enableVertexAttribArray(this.locAttrCoordX_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordX_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 0);
+  this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 4);
+
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+  this.bindTexture(null);
+};
+
+/**
+ *
+ */
+ProjShaderProgram.prototype.prepareRenderLatitudeLine = function() {
+  this.gl_.disableVertexAttribArray(this.locAttrCoordX_);
+  this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 0, 0);
+
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+  this.bindTexture(null);
+};
+
+/**
+ *
+ */
+ProjShaderProgram.prototype.prepareRenderLongitudeLine = function() {
+  this.gl_.disableVertexAttribArray(this.locAttrCoordY_);
+  this.gl_.enableVertexAttribArray(this.locAttrCoordX_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordX_, 1, this.gl_.FLOAT, this.gl_.FALSE, 0, 0);
+
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+  this.bindTexture(null);
+};
+
+/**
+ * @param textureId
+ * @param dataRect
+ */
+ProjShaderProgram.prototype.renderSurfaceTexture = function(textureId, dataRect, clipRect) {
+  this.gl_.bindTexture(this.gl_.TEXTURE_2D, textureId);
+
+  this.gl_.uniform2f(this.locUnifDataCoord1_, dataRect[0], dataRect[1]);
+  this.gl_.uniform2f(this.locUnifDataCoord2_, dataRect[2], dataRect[3]);
+
+  if (clipRect) {
+    this.gl_.uniform2f(this.locUnifClipCoord1_, clipRect[0], clipRect[1]);
+    this.gl_.uniform2f(this.locUnifClipCoord2_, clipRect[2], clipRect[3]);
+  } else {
+    this.gl_.uniform2f(this.locUnifClipCoord1_, 0.0, 0.0);
+    this.gl_.uniform2f(this.locUnifClipCoord2_, 1.0, 1.0);
+  }
+
+  this.gl_.drawArrays(this.gl_.TRIANGLE_STRIP, 0, 4);
+};
+
+/**
+ * @param points
+ */
+ProjShaderProgram.prototype.renderPolyline = function(points) {
+  if ( points.length / 2 <= ProjShaderProgram.POINTS_BUFFER_SIZE ) {
+    this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(points));
+    this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, points.length / 2);
+  } else {
+    var endIdx = 0;
+    var nextEndIdx = 0;
+    do {
+      nextEndIdx = endIdx + ProjShaderProgram.POINTS_BUFFER_SIZE * 2;
+      if ( points.length < nextEndIdx ) {
+        nextEndIdx = points.length;
+      }
+      var buff = points.slice(endIdx, nextEndIdx);
+      this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(buff));
+      this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, buff.length / 2);
+      endIdx = nextEndIdx - 2;    //  分割する点は前後の配列双方に含める
+    } while ( nextEndIdx < points.length );
+  }
+};
+
+/**
+ * @param points
+ */
+ProjShaderProgram.prototype.renderPoints = function(points) {
+  if ( points.length / 2 <= ProjShaderProgram.POINTS_BUFFER_SIZE ) {
+    this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(points));
+    this.gl_.drawArrays(this.gl_.POINTS, 0, points.length / 2);
+  } else {
+    var endIdx = 0;
+    var nextEndIdx = 0;
+    do {
+      nextEndIdx = endIdx + ProjShaderProgram.POINTS_BUFFER_SIZE * 2;
+      if ( points.length < nextEndIdx ) {
+        nextEndIdx = points.length;
+      }
+      var buff = points.slice(endIdx, nextEndIdx);
+      this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(buff));
+      this.gl_.drawArrays(this.gl_.POINTS, 0, buff.length / 2);
+      endIdx = nextEndIdx;
+    } while ( nextEndIdx < points.length );
+  }
+};
+
+/**
+ * @param lam
+ * @param phiList
+ * @param viewWindow 省略可
+ */
+ProjShaderProgram.prototype.renderLatitudeLine = function(lam, phiList, viewWindow) {
+  this.gl_.vertexAttrib1f(this.locAttrCoordX_, lam);
+  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(phiList));
+  this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, phiList.length);
+};
+
+/**
+ * @param phi
+ * @param lamList
+ * @param viewWindow 省略可
+ */
+ProjShaderProgram.prototype.renderLongitudeLine = function(phi, lamList, viewWindow) {
+  this.gl_.vertexAttrib1f(this.locAttrCoordY_, phi);
+  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(lamList));
+  this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, lamList.length);
+};
+
+/**
+ * @param vertShaderStr
+ * @param fragShaderStr
+ */
+ProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
   var vertexShader = this.loadShader_(this.gl_.VERTEX_SHADER, vertShaderStr);
   var fragmentShader = this.loadShader_(this.gl_.FRAGMENT_SHADER, fragShaderStr);
 
@@ -190,544 +564,78 @@ RasterProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) 
   this.gl_.attachShader(prog, vertexShader);
   this.gl_.attachShader(prog, fragmentShader);
 
-  this.gl_.bindAttribLocation(prog, 0, "aPosition");  //  TODO ??
-  this.gl_.bindAttribLocation(prog, 1, "aTexCoord");
   this.gl_.linkProgram(prog);
 
   var linked = this.gl_.getProgramParameter(prog, this.gl_.LINK_STATUS);
   if (!linked && !this.gl_.isContextLost()) {
     var info = this.gl_.getProgramInfoLog(prog);
-    alert("Error linking program:\n" + info);
+    alert('Error linking program:\n' + info);
     this.gl_.deleteProgram(prog);
     return false;
   }
   this.program_ = prog;
 
-  this.locTexture_ = this.gl_.getUniformLocation(this.program_, "uTexture");
-  this.locAlpha_ = this.gl_.getUniformLocation(this.program_, "uAlpha");
-  this.locProjCenter_ = this.gl_.getUniformLocation(this.program_, "uProjCenter");
-  this.locViewXY1_ = this.gl_.getUniformLocation(this.program_, "uViewXY1");
-  this.locViewXY2_ = this.gl_.getUniformLocation(this.program_, "uViewXY2");
-  this.locDataCoord1_ = this.gl_.getUniformLocation(this.program_, "uDataCoord1");
-  this.locDataCoord2_ = this.gl_.getUniformLocation(this.program_, "uDataCoord2");
-  this.locFixedTextureSize_ = this.gl_.getUniformLocation(this.program_, "uFixedTextureSize");
-  this.locRenderColor_ = this.gl_.getUniformLocation(this.program_, "uRenderColor");
-  this.locRenderType_ = this.gl_.getUniformLocation(this.program_, "uRenderType");
+  this.gl_.useProgram(this.program_);
 
-  //this.gl_.blendFunc(this.gl_.SRC_ALPHA, this.gl_.ONE);
+  this.locAttrCoordX_ = this.gl_.getAttribLocation(this.program_, 'aCoordX');
+  this.locAttrCoordY_ = this.gl_.getAttribLocation(this.program_, 'aCoordY');
+
+  this.locUnifFwdTransform_ = this.gl_.getUniformLocation(this.program_, 'uFwdTransform');
+  this.locUnifInvTransform_ = this.gl_.getUniformLocation(this.program_, 'uInvTransform');
+  this.locUnifProjCenter_ = this.gl_.getUniformLocation(this.program_, 'uProjCenter');
+  this.locUnifDataCoord1_ = this.gl_.getUniformLocation(this.program_, 'uDataCoord1');
+  this.locUnifDataCoord2_ = this.gl_.getUniformLocation(this.program_, 'uDataCoord2');
+  this.locUnifClipCoord1_ = this.gl_.getUniformLocation(this.program_, 'uClipCoord1');
+  this.locUnifClipCoord2_ = this.gl_.getUniformLocation(this.program_, 'uClipCoord2');
+  this.locUnifPointSize_ = this.gl_.getUniformLocation(this.program_, 'uPointSize');
+  this.locUnifCoordType_ = this.gl_.getUniformLocation(this.program_, 'uCoordType');
+  this.locUnifColor_ = this.gl_.getUniformLocation(this.program_, 'uColor');
+  this.locUnifOpacity_ = this.gl_.getUniformLocation(this.program_, 'uOpacity');
+  this.locUnifTextureType_ = this.gl_.getUniformLocation(this.program_, 'uTextureType');
+  this.locUnifTexture_ = this.gl_.getUniformLocation(this.program_, 'uTexture');
+
+  this.coordsBuffer_ = this.createBuffer_(ProjShaderProgram.DIMENSION, ProjShaderProgram.POINTS_BUFFER_SIZE);
+  this.gl_.bindBuffer(this.gl_.ARRAY_BUFFER, this.coordsBuffer_.buffer);
+
+  this.setClearColor({r: 0.0, g: 0.1, b: 0.0, a: 1.0});
+  this.setOpacity(1.0);
+
   this.gl_.blendFunc(this.gl_.SRC_ALPHA, this.gl_.ONE_MINUS_SRC_ALPHA);
 
   return true;
 };
 
-RasterProjShaderProgram.prototype.initAdditionalParams = function() {
-  this.locTranslateY_ = this.gl_.getUniformLocation(this.program_, "uTranslateY");  //  NOTICE tmerc独自
-};
-
-RasterProjShaderProgram.prototype.loadShader_ = function(type, shaderSrc) {
+/**
+ * @param type
+ * @param shaderSrc
+ */
+ProjShaderProgram.prototype.loadShader_ = function(type, shaderSrc) {
   var shader = this.gl_.createShader(type);
   this.gl_.shaderSource(shader, shaderSrc);
   this.gl_.compileShader(shader);
   if (!this.gl_.getShaderParameter(shader, this.gl_.COMPILE_STATUS) && !this.gl_.isContextLost()) {
     var info = this.gl_.getShaderInfoLog(shader);
-    alert("Error compiling shader:\n" + info);
+    alert('Error compiling shader:\n' + info);
     this.gl_.deleteShader(shader);
     return null;
   }
   return shader;
 };
 
-RasterProjShaderProgram.prototype.setClearColor = function(color) {
-  this.gl_.clearColor(color.r, color.g, color.b, color.a);
-  this.gl_.enable(this.gl_.BLEND);
+/**
+ * @param dim
+ * @param maxNum
+ */
+ProjShaderProgram.prototype.createBuffer_ = function(dim, maxNum) {
+  //  データ型はFloat32を前提
+  var buff = this.gl_.createBuffer();
+  this.gl_.bindBuffer(this.gl_.ARRAY_BUFFER, buff);
+  this.gl_.bufferData(this.gl_.ARRAY_BUFFER, maxNum * dim * 4, this.gl_.DYNAMIC_DRAW);
+  return {buffer: buff, dimension: dim, maxNum: maxNum};
 };
 
-RasterProjShaderProgram.prototype.clear = function(canvasSize) {
-  this.gl_.clear(this.gl_.COLOR_BUFFER_BIT);
-  this.gl_.viewport(0, 0, canvasSize.width, canvasSize.height);
-};
-
-RasterProjShaderProgram.prototype.initVBO = function(numberOfItems) {
-  this.vbo_ = this.gl_.createBuffer();
-  this.gl_.bindBuffer(this.gl_.ARRAY_BUFFER, this.vbo_);
-  this.gl_.bufferData(this.gl_.ARRAY_BUFFER, numberOfItems * 4 * 2, this.gl_.DYNAMIC_DRAW);
-};
-
-RasterProjShaderProgram.prototype.setRenderType = function(type) {
-  this.gl_.uniform1i(this.locRenderType_, type);
-};
-
-RasterProjShaderProgram.prototype.prepareRender = function(viewRect, texCoords, lam0, phi0, alpha, lineColor) {
-  this.gl_.useProgram(this.program_);
-
-  this.gl_.uniform1f(this.locAlpha_, alpha);
-  this.gl_.uniform4f(this.locRenderColor_, lineColor.r, lineColor.g, lineColor.b, lineColor.a);
-  this.gl_.uniform2f(this.locProjCenter_, lam0, phi0);
-  this.gl_.uniform2f(this.locViewXY1_, viewRect[0], viewRect[1]);
-  this.gl_.uniform2f(this.locViewXY2_, viewRect[2], viewRect[3]);
-  this.gl_.uniform1i(this.locTexture_, 0);
-
-  if ( this.locTranslateY_ != null ) {
-    this.gl_.uniform1f(this.locTranslateY_, 0.0);   //  NOTICE uTranslateY, tmerc独自
-  }
-
-  var offset = RasterProjShaderProgram.UNIT_RECT_TRIANGLE_STRIP.byteLength;
-  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, RasterProjShaderProgram.UNIT_RECT_TRIANGLE_STRIP);
-  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, offset, texCoords);
-
-  this.gl_.enableVertexAttribArray(0);
-  this.gl_.vertexAttribPointer(0, RasterProjShaderProgram.DIMENSION, this.gl_.FLOAT, this.gl_.FALSE, 0, 0);
-  this.gl_.enableVertexAttribArray(1);
-  this.gl_.vertexAttribPointer(1, RasterProjShaderProgram.DIMENSION, this.gl_.FLOAT, this.gl_.FALSE, 0, offset);
-};
-
-
-//  TODO コメントとしてこれは残しておく
-// RasterProjShaderProgram.prototype.prepareRenderPolyline = function() {
-//   this.gl_.enableVertexAttribArray(0);
-//   this.gl_.vertexAttribPointer(0, RasterProjShaderProgram.DIMENSION, this.gl_.FLOAT, this.gl_.FALSE, 0, 0);
-//   this.gl_.enableVertexAttribArray(1);
-//   this.gl_.vertexAttribPointer(1, RasterProjShaderProgram.DIMENSION, this.gl_.FLOAT, this.gl_.FALSE, 0, 0);
-// };
-
-//  TODO 要検討
-RasterProjShaderProgram.prototype.renderIconTexture = function(texture, iconSize, xyPos) {
-  this.gl_.bindTexture(this.gl_.TEXTURE_2D, texture);
-  this.gl_.uniform2f(this.locDataCoord1_, xyPos.x, xyPos.y);
-  this.gl_.uniform2f(this.locDataCoord2_, 0, 0);
-  this.gl_.uniform2f(this.locFixedTextureSize_, iconSize.width, iconSize.height);
-  this.gl_.drawArrays(this.gl_.TRIANGLE_STRIP, 0, 4);
-};
-
-RasterProjShaderProgram.prototype.renderTexture = function(texture, region) {
-  var lam1 = region[0];
-  var phi1 = region[1];
-  var lam2 = region[2];
-  var phi2 = region[3];
-
-  this.gl_.bindTexture(this.gl_.TEXTURE_2D, texture);
-  this.gl_.uniform2f(this.locDataCoord1_, lam1, phi1);
-  this.gl_.uniform2f(this.locDataCoord2_, lam2, phi2);
-  this.gl_.drawArrays(this.gl_.TRIANGLE_STRIP, 0, 4);
-};
-
-RasterProjShaderProgram.prototype.renderPolyline = function(points) {
-  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(points));
-  this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, points.length / 2);
-};
-
-RasterProjShaderProgram.prototype.setPolylineData = function(points) {
-  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(points));
-};
-
-RasterProjShaderProgram.prototype.renderPolylineData = function(numPoints, ty) {
-  if (typeof ty !== 'undefined') {
-    this.gl_.uniform1f(this.locTranslateY_, ty);    //  NOTICE uTranslateY, tmerc独自
-  }
-  this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, numPoints / 2);
-};
 
 /* ------------------------------------------------------------ */
-
-var GraticuleGenerator = function(proj, numPoints, span) {
-  this.projection = proj;
-  this.degUnit = span;
-  this.maxNumPoints = numPoints;
-  this.graticulePointsDistLimit = 0.01;  //  ２点間の間隔の平均がこれより大きい場合は分割する
-  this.maxRecursion = 6;
-};
-
-
-GraticuleGenerator.prototype.transform_ = function(trans, lam, phi) {
-  var xy = this.projection.forward(lam, phi);
-  if ( xy ) {
-    return trans.forwardPoint([xy.x, xy.y]);
-  } else {
-    return null;
-  }
-};
-
-GraticuleGenerator.prototype.isFarAway_ = function(prevPt, pt, limit) {
-  if ( !prevPt ) {
-    return false;
-  }
-  var norm = Math.abs(prevPt[0] - pt[0]) + Math.abs(prevPt[1] - pt[1]);
-  return limit < norm;
-};
-
-GraticuleGenerator.prototype.checkScreenRect = function(pt) {
-  return (-1.0 <= pt[0] && pt[0] <= 1.0 && -1.0 <= pt[1] && pt[1] <= 1.0);
-};
-
-
-GraticuleGenerator.prototype.generateLatitudeLineAtLon = function(lon, results, phiRange, trans) {
-  this.generateLatitudeLines_(results, lon * Math.PI / 180.0, phiRange, trans);
-};
-
-GraticuleGenerator.prototype.generateLongitudeLineAtLat = function(lat, results, lamRange, trans) {
-  this.generateLongitudeLines_(results, lat * Math.PI / 180.0, lamRange, trans);
-};
-
-
-GraticuleGenerator.prototype.generateLines = function(viewWindowRect) {
-  var x1 = viewWindowRect[0];
-  var y1 = viewWindowRect[1];
-  var x2 = viewWindowRect[2];
-  var y2 = viewWindowRect[3];
-  var dataRect = this.projection.inverseBoundingBox(x1, y1, x2, y2);
-
-  var trans = new CoordTransform(viewWindowRect, [-1.0, -1.0, +1.0, +1.0]);
-  var lonMin = Math.ceil((dataRect.lambda[0] * 180.0 / Math.PI + 180.0) / this.degUnit) * this.degUnit - 180.0;
-  var latMin = Math.ceil((dataRect.phi[0] * 180.0 / Math.PI + 80.0) / this.degUnit) * this.degUnit - 80.0;
-
-  var results = new PolylineContainer();
-
-  var lonLimit = dataRect.lambda[1] * 180.0 / Math.PI;
-  for (var lon = lonMin; lon <= 180 + 360; lon += this.degUnit) {
-    if ( lonLimit < lon || lonMin + 360 <= lon )   break;
-    this.generateLatitudeLineAtLon(lon, results, dataRect.phi, trans);
-  }
-
-  var latLimit = dataRect.phi[1] * 180.0 / Math.PI;
-  for (var lat = latMin; lat <= 80; lat += this.degUnit) {
-    if ( latLimit < lat )   break;
-    this.generateLongitudeLineAtLat(lat, results, dataRect.lambda, trans);
-  }
-
-  return results.polylineArray;
-};
-
-
-GraticuleGenerator.prototype.generateLatitudeLines_ = function(results, lam, phiRange, trans) {
-  var max = this.maxNumPoints - 1;
-  var phiLimit = 80.0 * Math.PI / 180.0;
-  var phiMin = (phiRange[0] < -phiLimit) ? -phiLimit : phiRange[0];
-  var phiMax = (phiLimit < phiRange[1]) ? phiLimit : phiRange[1];
-  if ( phiMin * phiMax < 0 ) {
-    var interpolator1 = LatitudeLineInterpolator.create(this.projection, trans, lam, phiMin, 0.0, max);
-    var interpolator2 = LatitudeLineInterpolator.create(this.projection, trans, lam, 0.0, phiMax, max);
-    this.generateEachLine_(results, trans, interpolator1);
-    this.generateEachLine_(results, trans, interpolator2);
-  } else {
-    var interpolator = LatitudeLineInterpolator.create(this.projection, trans, lam, phiMin, phiMax, max);
-    this.generateEachLine_(results, trans, interpolator);
-  }
-};
-
-
-GraticuleGenerator.prototype.generateLongitudeLines_ = function(results, phi, lamRange, trans) {
-  var max = this.maxNumPoints - 1;
-  if ( Math.PI < lamRange[1] - lamRange[0] ) {
-    var lamMiddle = (lamRange[0] + lamRange[1]) / 2.0;
-    var interpolator1 = LongitudeLineInterpolator.create(this.projection, trans, phi, lamRange[0], lamMiddle, max);
-    var interpolator2 = LongitudeLineInterpolator.create(this.projection, trans, phi, lamMiddle, lamRange[1], max);
-    this.generateEachLine_(results, trans, interpolator1);
-    this.generateEachLine_(results, trans, interpolator2);
-  } else {
-    var interpolator = LongitudeLineInterpolator.create(this.projection, trans, phi, lamRange[0], lamRange[1], max);
-    this.generateEachLine_(results, trans, interpolator);
-  }
-};
-
-
-GraticuleGenerator.prototype.generateEachLine_ = function(results, trans, interpolator) {
-  if ( !interpolator ) {
-    return false;
-  }
-
-  if ( this.maxRecursion < interpolator.recurseCount() ) {
-    console.log('over maxRecursion : count = ' + interpolator.recurseCount() );
-    this.generateEachPoints_(results, trans, interpolator);
-    return true;
-  }
-
-  var dist = interpolator.getNormBetweenEndPoints() / interpolator.max();
-
-  if ( dist < this.graticulePointsDistLimit ) {
-    this.generateEachPoints_(results, trans, interpolator);
-    return true;
-  }
-
-  var divided = interpolator.divide(this.projection, trans);
-  for ( var i = 0; i < divided.length; ++i ) {
-    this.generateEachLine_(results, trans, divided[i]);
-  }
-  return true;
-};
-
-
-GraticuleGenerator.prototype.generateEachPoints_ = function(results, trans, interpolator) {
-  var farAwayLimit = trans.scaleY() * Math.PI / 10;  //  値粋の平面のほぼ1/10  //  TODO 変更できるようにする
-
-  var prevOutPt = null;
-  if ( this.checkScreenRect(interpolator.iniPoint) ) {
-    results.add(interpolator.iniPoint);
-  } else {
-    prevOutPt = interpolator.iniPoint;
-  }
-  var prevPt = interpolator.iniPoint;
-
-  for (var i = 1; i < interpolator.max(); ++i) {
-    var pt = this.transform_(trans, interpolator.lambda(i), interpolator.phi(i));
-    if ( !pt ) {
-      //  座標が無効→現在のポリラインを完了する
-      results.endPolyline();
-      prevOutPt = null;
-    } else if ( this.checkScreenRect(pt) ) {
-      //  座標が画面内
-      //    直前の点がnullまたは隣接→点を追加、直前の点が領域外の場合はその点も追加
-      //    直前の点が離れている→ポリラインを完了した後、別途ポリラインを開始
-      if ( this.isFarAway_(prevPt, pt, farAwayLimit) ) {
-        results.endPolyline();
-        results.add(pt);
-      } else {
-        if ( prevOutPt ) {
-          results.add(prevOutPt);
-        }
-        results.add(pt);
-      }
-      prevOutPt = null;
-    } else {
-      //  座標が画面外
-      //    直前の点がnullまたは隣接→点を追加、ポリラインは閉じる。
-      //    直前の点が離れている→点を追加せず、ポリラインは閉じる。
-      if ( this.isFarAway_(prevPt, pt, farAwayLimit) ) {
-        results.endPolyline();
-      } else {
-        results.endPolyline(pt);
-      }
-      prevOutPt = pt;
-    }
-    prevPt = pt;
-  }
-  if ( this.isFarAway_(prevPt, interpolator.finPoint, farAwayLimit) ) {
-    results.endPolyline();
-  } else {
-    results.endPolyline(interpolator.finPoint);
-  }
-};
-
-/* -------------------------------------------------------------------------- */
-
-var LongitudeLineInterpolator = function(trans, phi, lam1, lam2, iniPt, finPt, max) {
-  this.iniPoint = iniPt;
-  this.finPoint = finPt;
-  //
-  this.phi_ = phi;
-  this.lambda1_ = lam1;
-  this.lambda2_ = lam2;
-  this.max_ = max;
-  this.length_ = lam2 - lam1;
-  this.recurseCount_ = 0;
-};
-
-
-LongitudeLineInterpolator.create = function(proj, trans, phi, lam1, lam2, max) {
-  var length = lam2 - lam1;
-
-  var iniPt = null;
-  var iniLam = null;
-  var k = 0;
-  var lam;
-  for ( ; k < max; ++k) {
-    lam = length * k / max + lam1;
-    var xy1 = proj.forward(lam, phi);
-    if ( xy1 ) {
-      iniPt = trans.forwardPoint([xy1.x, xy1.y]);
-      iniLam = lam;
-      break;
-    }
-  }
-  if ( !iniPt ) {
-    return null;
-  }
-  var finPt = null;
-  var finLam = null;
-  for (var i = max; k < i; --i) {
-    lam = length * i / max + lam1;
-    var xy2 = proj.forward(lam, phi);
-    if ( xy2 ) {
-      finPt = trans.forwardPoint([xy2.x, xy2.y]);
-      finLam = lam;
-      break;
-    }
-  }
-  if ( !finPt ) {
-    return null;
-  }
-  return new LongitudeLineInterpolator(trans, phi, iniLam, finLam, iniPt, finPt, max);
-};
-
-
-LongitudeLineInterpolator.prototype.recurseCount = function() {
-  return this.recurseCount_;
-};
-
-LongitudeLineInterpolator.prototype.max = function() {
-  return this.max_;
-};
-
-LongitudeLineInterpolator.prototype.getNormBetweenEndPoints = function() {
-  return Math.abs(this.finPoint[0] - this.iniPoint[0]) + Math.abs(this.finPoint[1] - this.iniPoint[1]);
-};
-
-LongitudeLineInterpolator.prototype.lambda = function(idx) {
-  return this.length_ * idx / this.max_ + this.lambda1_;
-};
-
-LongitudeLineInterpolator.prototype.phi = function(idx) {
-  return this.phi_;
-};
-
-LongitudeLineInterpolator.prototype.divide = function(proj, trans) {
-  var array = [];
-  var mid = (this.lambda1_ + this.lambda2_) / 2;
-  var divided1 = LongitudeLineInterpolator.create(proj, trans, this.phi_, this.lambda1_, mid, this.max_);
-  if ( divided1 ) {
-    divided1.recurseCount_ = this.recurseCount_ + 1;
-    array.push(divided1);
-  }
-  var divided2 = LongitudeLineInterpolator.create(proj, trans, this.phi_, mid, this.lambda2_, this.max_);
-  if ( divided2 ) {
-    divided2.recurseCount_ = this.recurseCount_ + 1;
-    array.push(divided2);
-  }
-  return array;
-};
-
-
-/* -------------------------------------------------------------------------- */
-
-var LatitudeLineInterpolator = function(trans, lam, phi1, phi2, iniPt, finPt, max) {
-  this.iniPoint = iniPt;
-  this.finPoint = finPt;
-  //
-  this.lambda_ = lam;
-  this.phi1_ = phi1;
-  this.phi2_ = phi2;
-  this.max_ = max;
-  this.length_ = phi2 - phi1;
-  this.recurseCount_ = 0;
-};
-
-
-LatitudeLineInterpolator.create = function(proj, trans, lam, phi1, phi2, max) {
-  var length = phi2 - phi1;
-
-  var iniPt = null;
-  var iniPhi = null;
-  var k = 0;
-  var phi;
-  for ( ; k < max; ++k) {
-    phi = length * k / max + phi1;
-    var xy1 = proj.forward(lam, phi);
-    if ( xy1 ) {
-      iniPt = trans.forwardPoint([xy1.x, xy1.y]);
-      iniPhi = phi;
-      break;
-    }
-  }
-  if ( !iniPt ) {
-    return null;
-  }
-  var finPt = null;
-  var finPhi = null;
-  for (var i = max; k < i; --i) {
-    phi = length * i / max + phi1;
-    var xy2 = proj.forward(lam, phi);
-    if ( xy2 ) {
-      finPt = trans.forwardPoint([xy2.x, xy2.y]);
-      finPhi = phi;
-      break;
-    }
-  }
-  if ( !finPt ) {
-    return null;
-  }
-  return new LatitudeLineInterpolator(trans, lam, iniPhi, finPhi, iniPt, finPt, max);
-};
-
-
-LatitudeLineInterpolator.prototype.recurseCount = function() {
-  return this.recurseCount_;
-};
-
-LatitudeLineInterpolator.prototype.max = function() {
-  return this.max_;
-};
-
-LatitudeLineInterpolator.prototype.getNormBetweenEndPoints = function() {
-  return Math.abs(this.finPoint[0] - this.iniPoint[0]) + Math.abs(this.finPoint[1] - this.iniPoint[1]);
-};
-
-LatitudeLineInterpolator.prototype.lambda = function(idx) {
-  return this.lambda_;
-};
-
-LatitudeLineInterpolator.prototype.phi = function(idx) {
-  return this.length_ * idx / this.max_ + this.phi1_;
-};
-
-LatitudeLineInterpolator.prototype.divide = function(proj, trans) {
-  var array = [];
-  var mid = (this.phi1_ + this.phi2_) / 2;
-  var divided1 = LatitudeLineInterpolator.create(proj, trans, this.lambda_, this.phi1_, mid, this.max_);
-  if ( divided1 ) {
-    divided1.recurseCount_ = this.recurseCount_ + 1;
-    array.push(divided1);
-  }
-  var divided2 = LatitudeLineInterpolator.create(proj, trans, this.lambda_, mid, this.phi2_, this.max_);
-  if ( divided2 ) {
-    divided2.recurseCount_ = this.recurseCount_ + 1;
-    array.push(divided2);
-  }
-  return array;
-};
-
-
-/* -------------------------------------------------------------------------- */
-
-var PolylineContainer = function() {
-  this.polylineArray = [];
-  this.currentPoints_ = null;
-  this.currentIndex_ = 0;
-};
-
-
-PolylineContainer.prototype.endPolyline = function(pt) {
-  if ( !this.currentPoints_ ) {
-    return false;
-  }
-  var ret = false;
-  if ( pt ) {
-    this.currentPoints_[this.currentIndex_++] = pt[0];
-    this.currentPoints_[this.currentIndex_++] = pt[1];
-  }
-  if ( 2 < this.currentPoints_.length ) {
-    this.polylineArray.push(this.currentPoints_);
-    ret = true;
-  }
-  this.currentPoints_ = null;
-  this.currentIndex_ = 0;
-  return true;
-};
-
-PolylineContainer.prototype.add = function(pt) {
-  if ( !pt ) {
-    return false;
-  }
-  if ( !this.currentPoints_ ) {
-    this.currentPoints_ = [];
-    this.currentIndex_ = 0;
-  }
-  this.currentPoints_[this.currentIndex_++] = pt[0];
-  this.currentPoints_[this.currentIndex_++] = pt[1];
-  return true;
-};
-
-
-
-/* -------------------------------------------------------------------------- */
 if (typeof module != 'undefined' && module.exports) {
-  module.exports = ProjMath;
+  module.exports = ProjShaderProgram;
 }
