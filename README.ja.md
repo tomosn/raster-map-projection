@@ -23,7 +23,7 @@ WebGLを用いて動的に投影変換を行うため、リアルタイムでの
 
 デモ
 -----
-https://tomosn.github.io/raster-map-projection-demo/
+https://tomosn.github.io/raster-map-projection-demo/index_ja.html
 
 http://www.flatearthlab.com/WebGL/
 
