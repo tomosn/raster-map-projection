@@ -13,6 +13,7 @@ Supported map projections
 Demo
 -----
 https://tomosn.github.io/raster-map-projection-demo/
+
 http://www.flatearthlab.com/WebGL/
 
 ![sample image (aeqd)](docs/sample-aeqd-tokyo.png)  
