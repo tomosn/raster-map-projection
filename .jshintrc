@@ -1,0 +1,34 @@
+{
+  "strict" : "global",  // "use strict"
+  "indent" : 2,
+  "maxlen" : 160,
+  "unused" : "vars",
+
+  //  global variables
+  "undef" : false,
+  "browser" : true,
+  "dojo" :  false,
+  "devel" : true,
+  "debug"    : true,
+  "jquery" : true,
+  "node" : true,
+  "globals": {
+    "CoordTransform" : false,
+    "ImageUtils" : false,
+    "GraticuleRenderer" : false,
+    "ProjMath" : false,
+    "ProjAEQD" : false,
+    "ProjLAEA" : false,
+    "ProjTMERC" : false,
+    "ProjShaderProgram" : false,
+    "RasterMapProjection" : false,
+    "RasterProjAEQD" : false,
+    "RasterProjLAEA" : false,
+    "RasterProjTMERC" : false,
+    "MapView" : false,
+    "ViewWindowManager" : false
+  },
+
+  "eqnull" : true,
+  "expr" : true
+}

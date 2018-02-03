@@ -1,0 +1,25 @@
+{
+  "env": {
+    "jasmine": true,
+    "node": true,
+    "mocha": true,
+    "browser": true,
+    "builtin": true
+  },
+  "extends": ["google"],
+  "globals": {},
+  "rules": {
+    "no-var" : 0,
+    "no-multi-spaces" : 0,
+    "valid-jsdoc" : 0,
+    "max-len": [2, {
+      "code": 160,
+      "tabWidth": 2,
+      "ignoreUrls": true
+    }],
+    "comma-dangle": 0,
+    "spaced-comment": 0,
+    "new-cap": ["error", {"capIsNewExceptionPattern": "this.dMath_.[A-Z]"}],
+    "camelcase": 1
+  }
+}
