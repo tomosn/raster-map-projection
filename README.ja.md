@@ -27,6 +27,8 @@ https://tomosn.github.io/raster-map-projection-demo/index_ja.html
 
 http://www.flatearthlab.com/WebGL/
 
+http://www.flatearthlab.com/WebGL/fullwindow_VIIRS.html
+
 ![画面イメージ(aeqd)](docs/sample-aeqd-tokyo.png)  
 Fig.(1) Azimuthal Equidistant Projection - 正距方位図法
 
@@ -36,7 +38,7 @@ Fig.(2) Lambert Azimuthal Equal-Area Projection - ランベルト正積方位図
 ![画面イメージ(tmerc)](docs/sample-tmerc-tokyo.png)  
 Fig.(3) Transverse Mercator Projection - 横メルカトル図法
 
-![画面イメージ(aeqd)](docs/aeqd-MODIS-00.png)  
+![画面イメージ(aeqd)](docs/aeqd-VIIRS-tokyo.png)  
 Fig.(4) Azimuthal Equidistant Projection - 正距方位図法
 
 ----

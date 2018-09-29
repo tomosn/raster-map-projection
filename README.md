@@ -26,6 +26,8 @@ https://tomosn.github.io/raster-map-projection-demo/
 
 http://www.flatearthlab.com/WebGL/
 
+http://www.flatearthlab.com/WebGL/fullwindow_VIIRS.html
+
 ![sample image (aeqd)](docs/sample-aeqd-tokyo.png)  
 Fig.(1) Azimuthal Equidistant Projection
 
@@ -35,7 +37,7 @@ Fig.(2) Lambert Azimuthal Equal-Area Projection
 ![sample image (tmerc)](docs/sample-tmerc-tokyo.png)  
 Fig.(3) Transverse Mercator Projection
 
-![sample image (aeqd)](docs/aeqd-MODIS-00.png)  
+![sample image (aeqd)](docs/aeqd-VIIRS-tokyo.png)  
 Fig.(4) Azimuthal Equidistant Projection
 
 ----
