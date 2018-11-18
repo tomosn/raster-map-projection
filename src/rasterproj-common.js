@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.22  2018-01-02
+ * Raster Map Projection v0.0.23  2018-11-18
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -191,6 +191,174 @@ ProjMath.neighborPoint = function(pt1, pt2) {
   return Math.abs(lam1 - lam2) < ProjMath.EPSILON;
 };
 
+ProjMath.calcAngle = function(x1, y1, x2, y2) {
+  //var c = vec2d1[0] * vec2d1[0] + vec2d1[1] * vec2d1[1];
+  //c += vec2d2[0] * vec2d2[0] + vec2d2[1] * vec2d2[1];
+  //return (vec2d1[0] * vec2d2[1] - vec2d1[1] * vec2d2[0]) / Math.sqrt(c);
+  return Math.atan2(x1 * y2 - x2 * y1, x1 * x2 + y1 * y2);
+};
+
+
+/* ------------------------------------------------------------ */
+
+/**
+ * Rangeユーティリティ
+ */
+var RangeUtils = function() {};
+
+RangeUtils.intersects_ = function(range1, range2) {
+  //  range1 != null && range2 != null
+  return (range2[0] - range1[1]) * (range2[1] - range1[0]) <= 0.0;
+};
+
+//  交差する場合にそのunionを返す
+RangeUtils.unionIfIntersects = function(range1, range2) {
+  if (range1 === null || range2 === null) {
+    return null;
+  }
+  if ( !RangeUtils.intersects_(range1, range2) ) {
+    return null;
+  }
+  var min = (range1[0] < range2[0]) ? range1[0] : range2[0];
+  var max = (range1[1] < range2[1]) ? range2[1] : range1[1];
+  return [min, max];
+};
+
+/* ------------------------------------------------------------ */
+
+/**
+ * lambda Rangeユーティリティ
+ */
+var LambdaRangeUtils = function() {};
+
+LambdaRangeUtils.isPeriodic = function(range) {
+  return 2*Math.PI - ProjMath.EPSILON <= range[1] - range[0];
+};
+
+//  TODO 試験
+LambdaRangeUtils.contains = function(outerRange, innerRange) {
+  if ( LambdaRangeUtils.isPeriodic(outerRange) ) {
+    return true;
+  }
+  var outerLength = outerRange[1] - outerRange[0];
+  var innerLength = innerRange[1] - innerRange[0];
+  if (outerLength < innerLength) {
+    return false;
+  }
+  var outer = LambdaRangeUtils.normalize(outerRange);
+  var inner = LambdaRangeUtils.normalize(innerRange);
+  if (outer[0] <= inner[0] && inner[1] <= outer[1]) {
+    return true;
+  }
+  if (Math.PI < outer[1]) {
+    if (inner[1] <= outer[1] - 2*Math.PI) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/**
+ * 経度lambda範囲の正規化
+ * lambda_minが -¥pi <= lambda_min < ¥pi の範囲内に収まるようにシフトする。
+ * 但し、長さが 2¥pi を超える場合は [-¥pi, ¥pi] を返す。
+ *
+ * @param {Array} range [lambda_min, lambda_max]
+ * @return {Array} [lambda_min, lambda_max]
+ */
+LambdaRangeUtils.normalize = function(range) {
+  if ( LambdaRangeUtils.isPeriodic(range) ) {
+    return [-Math.PI, Math.PI];
+  }
+  var lam1 = range[0];
+  if ( -Math.PI <= lam1 && lam1 < Math.PI ) {
+    return range;
+  }
+  var d = 2 * Math.PI * Math.floor( (lam1 + Math.PI) / (2 * Math.PI) );
+  return [range[0] - d, range[1] - d];
+};
+
+/* ------------------------------------------------------------ */
+
+
+/**
+ * データ座標系ユーティリティ
+ */
+var GeographicRectUtils = function() {};
+
+GeographicRectUtils.mergeRange_ = function(range1, range2) {
+  var range = null;
+  if ( range1 == null ) {
+    range = range2;
+  } else if ( range2 != null ) {
+    range = range1;
+    if ( range2[0] < range[0] ) {
+      range[0] = range2[0];
+    }
+    if ( range[1] < range2[1] ) {
+      range[1] = range2[1];
+    }
+  }
+  return range;
+};
+
+//  TODO 周期性を考慮したunionの定義を再検討。今のところ重なりが無いケースでの使用が無いため問題は無いが。
+//  TODO 試験！！
+GeographicRectUtils.union = function(rect1, rect2) {
+  var phiRange = GeographicRectUtils.mergeRange_(rect1.phi, rect2.phi);
+  //
+  var lambda1 = LambdaRangeUtils.normalize(rect1.lambda);
+  var lambda2 = LambdaRangeUtils.normalize(rect2.lambda);
+  var lamRange = GeographicRectUtils.mergeRange_(lambda1, lambda2);
+  return { lambda: LambdaRangeUtils.normalize(lamRange), phi: phiRange };
+};
+
+//  TODO lambda方向のintersectionの結果、２個に分離される場合を考慮できていない。
+//  TODO 試験！！
+GeographicRectUtils.intersection = function(rect1, rect2) {
+  var phi1 = (rect1.phi[0] < rect2.phi[0]) ? rect2.phi[0] : rect1.phi[0];  //  大きい方
+  var phi2 = (rect1.phi[1] < rect2.phi[1]) ? rect1.phi[1] : rect2.phi[1];  //  小さい方
+  if (phi2 <= phi1) {
+    return null;   //  phiの範囲に重なり無し
+  }
+
+  //
+  var lamRange = null;
+  var round1 = LambdaRangeUtils.isPeriodic(rect1.lambda);
+  var round2 = LambdaRangeUtils.isPeriodic(rect2.lambda);
+  if (round1 && round2) {
+    lamRange = [-Math.PI, Math.PI];
+  } else {
+    var lambda1 = LambdaRangeUtils.normalize(rect1.lambda);
+    var lambda2 = LambdaRangeUtils.normalize(rect2.lambda);
+    if (round1) {
+      lamRange = lambda2;
+    } else if (round2) {
+      lamRange = lambda1;
+    } else {
+      var lam1 = (lambda1[0] < lambda2[0]) ? lambda2[0] : lambda1[0];
+      var lam2 = (lambda1[1] < lambda2[1]) ? lambda1[1] : lambda2[1];
+      if (lam1 < lam2) {
+        lamRange = [lam1, lam2];
+      } else {
+        //  周期性を考慮して重なる場合の対応。但し分割して２領域が重なる場合に対応していない
+        var max = (lambda1[1] < lambda2[1]) ? lambda2[1] : lambda1[1];
+        if (Math.PI < max) {
+          var min = (lambda1[0] < lambda2[0]) ? lambda1[0] : lambda2[0];
+          if (min < max - 2*Math.PI) {
+            lamRange = [min, max - 2*Math.PI];
+          }
+        }
+        if (lamRange === null) {
+          return null;   //  lambdaの範囲に重なり無し
+        }
+      }
+    }
+  }
+  return { lambda:lamRange, phi:[phi1, phi2] };
+};
+
+
 /* ------------------------------------------------------------ */
 
 /**
@@ -279,21 +447,58 @@ ProjShaderProgram.prototype.setColor = function(color) {
  * @param y1
  * @param x2
  * @param y2
+ * @param theta 回転角
  */
-ProjShaderProgram.prototype.setViewWindow = function(x1, y1, x2, y2) {
+//  TODO deprecatedも検討する。
+ProjShaderProgram.prototype.setViewWindow = function(x1, y1, x2, y2, theta) {
   //  uFwdTransform : [(x1, y1)-(x2, y2)] -> [(-1.0, -1.0)-(+1.0, +1.0)]
   //  uInvTransform : [(-1.0, -1.0)-(+1.0, +1.0)] -> [(x1, y1)-(x2, y2)]
-  var dx = x2 - x1;
-  var dy = y2 - y1;
-  var mx = x1 + x2;
-  var my = y1 + y2;
 
-  var mat = [2.0/dx, 0.0, 0.0,   0.0, 2.0/dy, 0.0,  -mx/dx, -my/dy, 1.0];
-  var inv = [dx/2.0, 0.0, 0.0,   0.0, dy/2.0, 0.0,  mx/2.0, my/2.0, 1.0];
+  var dx = (x2 - x1) / 2.0;
+  var dy = (y2 - y1) / 2.0;
+  var mx = (x1 + x2) / 2.0;
+  var my = (y1 + y2) / 2.0;
+
+  var cost = Math.cos(theta);
+  var sint = Math.sin(theta);
+
+  var mat = [
+    cost/dx, sint/dx, 0.0,
+    -sint/dy, cost/dy, 0.0,
+    -cost*mx/dx + sint*my/dy, -sint*mx/dx - cost*my/dy, 1.0
+  ];   //   transpose
+  var inv = [
+    cost*dx, -dy*sint, 0.0,
+    sint*dx, cost*dy, 0.0,
+    mx, my, 1.0
+  ];   //  transpose
 
   this.gl_.uniformMatrix3fv(this.locUnifFwdTransform_, false, mat);
   this.gl_.uniformMatrix3fv(this.locUnifInvTransform_, false, inv);
 };
+
+//  MEMO setViewWindowに代わる変換。
+ProjShaderProgram.prototype.setTransform = function(cx, cy, dx, dy, theta) {
+  var hx = dx / 2.0;
+  var hy = dy / 2.0;
+
+  var cost = Math.cos(theta);
+  var sint = Math.sin(theta);
+
+  var mat = [
+    cost/hx, sint/hy, 0.0,
+    -sint/hy, cost/hy, 0.0,
+    -cost*cx/hx + sint*cy/hy, -sint*cx/hx - cost*cy/hy, 1.0
+  ];   //  transpose
+  var inv = [
+    cost*hx, -sint*hy, 0.0,
+    sint*hx, cost*hy, 0.0,
+    cx, cy, 1.0
+  ];   //  transpose
+  this.gl_.uniformMatrix3fv(this.locUnifFwdTransform_, false, mat);
+  this.gl_.uniformMatrix3fv(this.locUnifInvTransform_, false, inv);
+};
+
 
 /**
  * @param lam0
@@ -637,5 +842,14 @@ ProjShaderProgram.prototype.createBuffer_ = function(dim, maxNum) {
 
 /* ------------------------------------------------------------ */
 if (typeof module != 'undefined' && module.exports) {
-  module.exports = ProjShaderProgram;
+  module.exports = {
+    RasterMapProjection: RasterMapProjection,
+    ImageUtils: ImageUtils,
+    MathUtils: MathUtils,
+    RangeUtils: RangeUtils,
+    LambdaRangeUtils: LambdaRangeUtils,
+    GeographicRectUtils: GeographicRectUtils,
+    ProjMath: ProjMath,
+    ProjShaderProgram: ProjShaderProgram
+  };
 }

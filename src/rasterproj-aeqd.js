@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.22  2018-01-02
+ * Raster Map Projection v0.0.23  2018-11-18
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -7,7 +7,9 @@
 'use strict';
 
 if (typeof module!='undefined' && module.exports) {
-  var ProjMath = require('./rasterproj-common.js');
+  var RasterProjCommon = require('./rasterproj-common.js');
+  var RasterMapProjection = RasterProjCommon.RasterMapProjection;
+  var ProjMath = RasterProjCommon.ProjMath;
 }
 
 // -----------------------------------------------------
@@ -862,6 +864,9 @@ ProjAEQD.FRAGMENT_SHADER_STR = [
 
 /* -------------------------------------------------------------------------- */
 if (typeof module != 'undefined' && module.exports) {
-  module.exports = ProjAEQD;
-  module.exports.ProjDiscreteMath = ProjDiscreteMath;
+  module.exports = {
+    RasterMapProjection: RasterMapProjection,
+    ProjAEQD: ProjAEQD,
+    ProjDiscreteMath: ProjDiscreteMath
+  };
 }

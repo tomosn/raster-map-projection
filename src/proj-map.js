@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.22  2018-01-02
+ * Raster Map Projection v0.0.23  2018-11-18
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -7,7 +7,11 @@
 'use strict';
 
 if (typeof module!='undefined' && module.exports) {
-  var ProjMath = require('./rasterproj-common.js');
+  var RasterProjCommon = require('./rasterproj-common.js');
+  var RasterMapProjection = RasterProjCommon.RasterMapProjection;
+  var LambdaRangeUtils = RasterProjCommon.LambdaRangeRectUtils;
+  var GeographicRectUtils = RasterProjCommon.GeographicRectUtils;
+  var ProjMath = RasterProjCommon.ProjMath;
 }
 
 // -----------------------------------------------------
@@ -95,8 +99,9 @@ TileManager.prototype.getScale_ = function(level) {
 TileManager.prototype.getTileInfos = function(dataRect, level) {
   var scale = this.getScale_(level);
   var numX = this.getTileNumX_(scale);
-  var idxX1 = this.getTileX_(scale, dataRect.lambda[0]);
-  var idxX2 = this.getTileX_(scale, dataRect.lambda[1]);
+  var lams = LambdaRangeUtils.normalize(dataRect.lambda);
+  var idxX1 = this.getTileX_(scale, lams[0]);
+  var idxX2 = this.getTileX_(scale, lams[1]);
 
   var numY = this.getTileNumY_(scale);
   var idxY1;
@@ -113,7 +118,7 @@ TileManager.prototype.getTileInfos = function(dataRect, level) {
 
   var iyMin = numY + 1;
   for ( var idxY = idxY1; idxY <= idxY2; ++idxY ) {
-    var iy = idxY % numY;   //  正規化
+    var iy = idxY % numY;   //  正規化    //  TODO idxYの正規化は不要？
     if ( iyMin == iy )   break;
     if ( iy < iyMin )    iyMin = iy;
 
@@ -233,45 +238,85 @@ ImageCache.prototype.clearOngoingImageLoads = function() {
 /* ------------------------------------------------------------ */
 
 /**
- * 直交座標系間の変換
- * @param {Array.<number>} srcCoordRect
- * @param {Array.<number>} dstCoordRect
- * @constructor
+ * 回転を含む座標系間の変換
  */
-var CoordTransform = function(srcCoordRect, dstCoordRect) {
-  this.src_x1_ = srcCoordRect[0];
-  this.src_y1_ = srcCoordRect[1];
-  this.src_x2_ = srcCoordRect[2];
-  this.src_y2_ = srcCoordRect[3];
-  //
-  this.dst_x1_ = dstCoordRect[0];
-  this.dst_y1_ = dstCoordRect[1];
-  this.dst_x2_ = dstCoordRect[2];
-  this.dst_y2_ = dstCoordRect[3];
-  //
-  this.scaleX_ = (dstCoordRect[2] - dstCoordRect[0]) / (srcCoordRect[2] - srcCoordRect[0]);
-  this.scaleY_ = (dstCoordRect[3] - dstCoordRect[1]) / (srcCoordRect[3] - srcCoordRect[1]);
+var CoordTransform = function(cxx, cxy, cyx, cyy, tx, ty) {
+  this.cxx_ = cxx;
+  this.cxy_ = cxy;
+  this.cyx_ = cyx;
+  this.cyy_ = cyy;
+  this.tx_  = tx;
+  this.ty_  = ty;
 };
 
-CoordTransform.prototype.scaleX = function() {
-  return this.scaleX_;
+CoordTransform.prototype.clone = function() {
+  return new CoordTransform(this.cxx_, this.cxy_, this.cyx_, this.cyy_, this.tx_, this.ty_);
 };
 
-CoordTransform.prototype.scaleY = function() {
-  return this.scaleY_;
+CoordTransform.prototype.equals = function(dst) {
+  return (this.cxx_ === dst.cxx_) &&
+    (this.cxy_ === dst.cxy_) &&
+    (this.cyx_ === dst.cyx_) &&
+    (this.cyy_ === dst.cyy_) &&
+    (this.tx_ === dst.tx_) &&
+    (this.ty_ === dst.ty_);
 };
 
-CoordTransform.prototype.forwardPoint = function(srcPos) {
-  var x = this.dst_x1_ + (srcPos[0] - this.src_x1_) * this.scaleX_;
-  var y = this.dst_y1_ + (srcPos[1] - this.src_y1_) * this.scaleY_;
-  return [x, y];
+CoordTransform.prototype.forwardPoint = function(x, y) {
+  var dstX = this.cxx_ * x + this.cxy_ * y + this.tx_;
+  var dstY = this.cyx_ * x + this.cyy_ * y + this.ty_;
+  return [dstX, dstY];
 };
 
+CoordTransform.prototype.forwardRectBounds = function(x1, y1, x2, y2) {
+  var xmin, xmax, ymin, ymax;
+  if (x1 < x2) {
+    xmin = x1;
+    xmax = x2;
+  } else {
+    xmin = x2;
+    xmax = x1;
+  }
+  if (y1 < y2) {
+    ymin = y1;
+    ymax = y2;
+  } else {
+    ymin = y2;
+    ymax = y1;
+  }
 
-CoordTransform.prototype.forwardRect = function(srcRect) {
-  var pt1 = this.forwardPoint([srcRect[0], srcRect[1]]);
-  var pt2 = this.forwardPoint([srcRect[2], srcRect[3]]);
-  return [pt1[0], pt1[1], pt2[0], pt2[1]];
+  var dstX1, dstX2, dstY1, dstY2;
+  dstX1 = dstX2 = this.tx_;
+  dstY1 = dstY2 = this.ty_;
+  if (0.0 <= this.cxx_) {
+    dstX1 += this.cxx_ * xmin;
+    dstX2 += this.cxx_ * xmax;
+  } else {
+    dstX1 += this.cxx_ * xmax;
+    dstX2 += this.cxx_ * xmin;
+  }
+  if (0.0 <= this.cxy_) {
+    dstX1 += this.cxy_ * ymin;
+    dstX2 += this.cxy_ * ymax;
+  } else {
+    dstX1 += this.cxy_ * ymax;
+    dstX2 += this.cxy_ * ymin;
+  }
+  if (0.0 <= this.cyx_) {
+    dstY1 += this.cyx_ * xmin;
+    dstY2 += this.cyx_ * xmax;
+  } else {
+    dstY1 += this.cyx_ * xmax;
+    dstY2 += this.cyx_ * xmin;
+  }
+  if (0.0 <= this.cyy_) {
+    dstY1 += this.cyy_ * ymin;
+    dstY2 += this.cyy_ * ymax;
+  } else {
+    dstY1 += this.cyy_ * ymax;
+    dstY2 += this.cyy_ * ymin;
+  }
+  return [dstX1, dstY1, dstX2, dstY2];
 };
 
 
@@ -293,12 +338,67 @@ var ViewWindowManager = function(viewRect, canvasSize, opts) {
     }
   }
   //
-  this.rect = this.getViewRect();
+  var cx = (this.viewRect_[2] + this.viewRect_[0]) / 2;
+  var cy = (this.viewRect_[3] + this.viewRect_[1]) / 2;
+  var w = (this.viewRect_[2] - this.viewRect_[0]);
+  var h = (this.viewRect_[3] - this.viewRect_[1]);
+  this.viewCenter = [cx, cy];
+  this.viewWindowSize = [w, h];
+  //
+  this.rot_ = null;
+  this.setRotate(0.0);   //  ViewとWindow間の回転角
+  this.transform_ = this.calcTransform_();
+};
+
+ViewWindowManager.prototype.calcTransform_ = function() {
+  var cx = this.viewCenter[0];
+  var cy = this.viewCenter[1];
+  var dx = this.viewWindowSize[0] / 2.0;
+  var dy = this.viewWindowSize[1] / 2.0;
+  var sx = this.viewWindowSize[0] / this.canvasSize.width;
+  var sy = this.viewWindowSize[1] / this.canvasSize.height;
+
+  var cxx =  this.rot_.cost*sx;
+  var cxy = -this.rot_.sint*sy;
+  var tx  = cx - this.rot_.cost*dx - this.rot_.sint*dy + this.rot_.sint*sy * this.canvasSize.height;
+
+  var cyx = -this.rot_.sint*sx;
+  var cyy = -this.rot_.cost*sy;
+  var ty  = cy + this.rot_.sint*dx - this.rot_.cost*dy + this.rot_.cost*sy * this.canvasSize.height;
+
+  return new CoordTransform(cxx, cxy, cyx, cyy, tx, ty);
+};
+
+ViewWindowManager.prototype.setRotate = function(theta) {
+  var ct = Math.cos(theta);
+  var st = Math.sin(theta);
+  this.rot_ = { theta: theta, cost: ct, sint: st };
+  this.transform_ = this.calcTransform_();
+};
+
+ViewWindowManager.prototype.getRotate = function() {
+  return this.rot_.theta;
+};
+
+ViewWindowManager.prototype.rotate = function(dt) {
+  var theta = this.rot_.theta + dt;
+  var ct = Math.cos(theta);
+  var st = Math.sin(theta);
+  //
+  var cosdt = Math.cos(dt);
+  var sindt = Math.sin(dt);
+  var dstX =  this.viewCenter[0] * cosdt + this.viewCenter[1] * sindt;
+  var dstY = -this.viewCenter[0] * sindt + this.viewCenter[1] * cosdt;
+  //
+  this.viewCenter = [dstX, dstY];
+  this.rot_ = { theta: theta, cost: ct, sint: st };
+  this.transform_ = this.calcTransform_();
 };
 
 ViewWindowManager.prototype.setCanvasSize = function(canvasWidth, canvasHeight) {
   this.canvasSize.width = canvasWidth;
   this.canvasSize.height = canvasHeight;
+  this.transform_ = this.calcTransform_();
 };
 
 ViewWindowManager.prototype.getCanvasSize = function() {
@@ -309,58 +409,114 @@ ViewWindowManager.prototype.getViewRect = function() {
   return this.viewRect_.slice(0);  //  投影後の全体領域
 };
 
+//  MEMO setViewWindowに代わるメソッド
+ViewWindowManager.prototype.setViewWindowByCenter = function(cx, cy, w, h) {
+  this.viewCenter = [cx, cy];
+  this.viewWindowSize = [w, h];
+  this.transform_ = this.calcTransform_();
+};
+
+//  TODO deprecatedを検討
 ViewWindowManager.prototype.setViewWindow = function(x1, y1, x2, y2) {
-  this.rect = [x1, y1, x2, y2];
+  //this.rect = [x1, y1, x2, y2];
+  //  TODO 暫定対応
+  var cx = (x2 + x1) / 2;
+  var cy = (y2 + y1) / 2;
+  var w = (x2 - x1);
+  var h = (y2 - y1);
+  this.viewCenter = [cx, cy];
+  this.viewWindowSize = [w, h];
+  this.transform_ = this.calcTransform_();
 };
 
+//  TODO deprecatedを検討
 ViewWindowManager.prototype.getViewWindow = function() {
-  return this.rect.slice(0);   //  copy
+  //return this.rect.slice(0);   //  copy
+  //  TODO 暫定対応
+  var x1 = this.viewCenter[0] - this.viewWindowSize[0] / 2;
+  var y1 = this.viewCenter[1] - this.viewWindowSize[1] / 2;
+  var x2 = this.viewCenter[0] + this.viewWindowSize[0] / 2;
+  var y2 = this.viewCenter[1] + this.viewWindowSize[1] / 2;
+  return [ x1, y1, x2, y2 ];
 };
 
+//  MEMO このAPI単体としては対応済み（ただし確認が不十分）
+ViewWindowManager.prototype.getViewWindowBounds = function() {
+  return this.transform_.forwardRectBounds(0, 0, this.canvasSize.width, this.canvasSize.height);
+};
+
+ViewWindowManager.prototype.getViewWindowScale = function() {
+  return Math.sqrt(this.viewWindowSize[0] * this.viewWindowSize[0] + this.viewWindowSize[1] * this.viewWindowSize[1]);
+};
+
+//  TODO 動作確認が必要
+//   Window座標系上の矩形のView座標系上のBoundingBox取得
+ViewWindowManager.prototype.getViewRectBoundsFromWindow = function(x1, y1, x2, y2) {
+  return this.transform_.forwardRectBounds(x1, y1, x2, y2);
+};
+
+//  MEMO 対応済み
 ViewWindowManager.prototype.setViewWindowCenter = function(cx, cy) {
-  var w = (this.rect[2] - this.rect[0]) / 2;
-  var h = (this.rect[3] - this.rect[1]) / 2;
-  this.rect = [cx-w, cy-h, cx+w, cy+h];
+  this.viewCenter = [cx, cy];
+  this.transform_ = this.calcTransform_();
 };
 
+//  MEMO 対応済み
 ViewWindowManager.prototype.getViewWindowCenter = function() {
-  var x = (this.rect[2] + this.rect[0]) / 2;
-  var y = (this.rect[3] + this.rect[1]) / 2;
-  return [x, y];
+  return this.viewCenter.slice(0);
 };
 
+//  MEMO 対応済み、回転への再調整済み
 ViewWindowManager.prototype.moveWindow = function(dx, dy) {
-  var tx = - dx * (this.rect[2] - this.rect[0]) / this.canvasSize.width;
-  var ty = dy * (this.rect[3] - this.rect[1]) / this.canvasSize.height;  //  画面座標の上下は逆
-  var x1 = this.rect[0] + tx;
-  var y1 = this.rect[1] + ty;
-  var x2 = this.rect[2] + tx;
-  var y2 = this.rect[3] + ty;
-  this.rect = [x1, y1, x2, y2];
+  var sx = this.viewWindowSize[0] / this.canvasSize.width;
+  var sy = this.viewWindowSize[1] / this.canvasSize.height;  //  画面座標の上下は逆
+  var cx = this.viewCenter[0] - sx*this.rot_.cost*dx + sy*this.rot_.sint*dy;
+  var cy = this.viewCenter[1] + sx*this.rot_.sint*dx + sy*this.rot_.cost*dy;  //  画面座標の上下は逆
+  this.viewCenter = [cx, cy];
+  this.transform_ = this.calcTransform_();
 };
 
+//  MEMO 対応済み
 ViewWindowManager.prototype.zoomWindow = function(dz) {
   //  画面上でのY方向の長さをdzピクセル分だけ絞り込んだ部分の領域に拡大表示する。
   //  X方向はそれに合わせて等縮尺で拡大する。
   var s = (this.canvasSize.height - dz) / this.canvasSize.height;
-  var w = s * (this.rect[2] - this.rect[0]) / 2;
-  var h = s * (this.rect[3] - this.rect[1]) / 2;
-  var cx = (this.rect[2] + this.rect[0]) / 2;
-  var cy = (this.rect[3] + this.rect[1]) / 2;
+  var w2 = s * this.viewWindowSize[0] / 2;
+  var h2 = s * this.viewWindowSize[1] / 2;
 
-  if ( this.zoomInLimit_ != null && (w < this.zoomInLimit_ || h < this.zoomInLimit_) )  return;
-  if ( this.zoomOutLimit_ != null && (this.zoomOutLimit_ < w || this.zoomOutLimit_ < h) )  return;
+  if ( this.zoomInLimit_ != null && (w2 < this.zoomInLimit_ || h2 < this.zoomInLimit_) )  return;
+  if ( this.zoomOutLimit_ != null && (this.zoomOutLimit_ < w2 || this.zoomOutLimit_ < h2) )  return;
 
-  this.rect = [cx-w, cy-h, cx+w, cy+h];
+  this.viewWindowSize = [2 * w2, 2 * h2];
+  this.transform_ = this.calcTransform_();
 };
 
+//  MEMO 対応済み
 ViewWindowManager.prototype.getViewPointFromWindow = function(x, y) {
-  var trans = new CoordTransform([0, this.canvasSize.height, this.canvasSize.width, 0], this.rect);
-  return trans.forwardPoint([x, y]);
+  return this.transform_.forwardPoint(x, y);
 };
 
 /* ------------------------------------------------------------ */
 
+/**
+ * MapViewにおいてデータ座標系上のBoundingRectを算出する際の計算の効率化の判定処理
+ */
+var GeographicRectBoundsCalculateStrategy_ = function(theta0) {
+  this.theta0_ = theta0;
+};
+
+GeographicRectBoundsCalculateStrategy_.prototype.calculate = function(theta) {
+  var t = theta - Math.floor(theta * 2/Math.PI) * Math.PI/2;
+  if (t < this.theta0_ || Math.PI/2 - this.theta0_ < t) {
+    return 1;
+  }
+  return 2;
+};
+
+/* ------------------------------------------------------------ */
+
+//  TODO tileOpts, cacheOptsの必要性の検証。
+//  TODO RasterMapProjectionを外部に出すことを検討
 /**
  * Map View
  * @param {object} gl
@@ -380,6 +536,8 @@ var MapView = function(gl, proj, canvasSize, tileOpts, cacheOpts) {
   };
   var rangeRect = this.projection.getRange();
   this.viewWindowManager_ = new ViewWindowManager(rangeRect, canvasSize, viewWindowOpts);
+  //
+  this.calcStrategy_ = new GeographicRectBoundsCalculateStrategy_(Math.PI/16);
   //
   this.layers_ = [];
   this.nameToLayers_ = {};
@@ -402,12 +560,45 @@ MapView.prototype.getViewRect = function() {
   return this.viewWindowManager_.getViewRect();
 };
 
+MapView.prototype.getRotate = function() {
+  return this.viewWindowManager_.getRotate();
+};
+
+MapView.prototype.setRotate = function(theta) {
+  this.viewWindowManager_.setRotate(theta);
+  this.invalidate();
+};
+
+MapView.prototype.rotate = function(dt) {
+  this.viewWindowManager_.rotate(dt);
+  this.invalidate();
+};
+
+//   TODO deprecatedとすることを検討
 MapView.prototype.getWindow = function() {
   return this.viewWindowManager_.getViewWindow();
 };
 
+MapView.prototype.getWindowBounds = function() {
+  return this.viewWindowManager_.getViewWindowBounds();
+};
+
+//  TODO deprecated検討
 MapView.prototype.setWindow = function(x1, y1, x2, y2) {
-  this.viewWindowManager_.setViewWindow(x1, y1, x2, y2);
+  //this.viewWindowManager_.setViewWindow(x1, y1, x2, y2);
+  //  TODO 暫定対応
+  var cx = (x1 + x2) / 2;
+  var cy = (y1 + y2) / 2;
+  var w = (x2 - x1);
+  var h = (y2 - y1);
+  this.viewWindowManager_.setViewWindowByCenter(cx, cy, w, h);
+  this.invalidateLayers();
+  this.invalidate();
+};
+
+//  MEMO 中心点とサイズでの指定
+MapView.prototype.setWindowByCenter = function(cx, cy, w, h) {
+  this.viewWindowManager_.setViewWindowByCenter(cx, cy, w, h);
   this.invalidateLayers();
   this.invalidate();
 };
@@ -431,7 +622,7 @@ MapView.prototype.setViewCenterPoint = function(cx, cy) {
   this.invalidate();
 };
 
-
+//  TODO getDataPointFromWindow等に名称変更を検討
 MapView.prototype.getLambdaPhiPointFromWindow = function(x, y) {
   var viewPos = this.viewWindowManager_.getViewPointFromWindow(x, y);
   return this.projection.inverse(viewPos[0], viewPos[1]);
@@ -439,6 +630,39 @@ MapView.prototype.getLambdaPhiPointFromWindow = function(x, y) {
 
 MapView.prototype.getViewPointFromWindow = function(x, y) {
   return this.viewWindowManager_.getViewPointFromWindow(x, y);
+};
+
+MapView.prototype.getDividedGeographicRectBounds_ = function(divide) {
+  var mergedDataRect = null;
+  for (var j = 0; j < divide; j++) {
+    var y1 = j * this.viewWindowManager_.canvasSize.height / divide;
+    var y2 = (j + 1) * this.viewWindowManager_.canvasSize.height / divide;
+    for (var i = 0; i < divide; i++) {
+      var x1 = i * this.viewWindowManager_.canvasSize.width / divide;
+      var x2 = (i + 1) * this.viewWindowManager_.canvasSize.width / divide;
+      var bbox = this.viewWindowManager_.getViewRectBoundsFromWindow(x1, y1, x2, y2);
+      var dataRect = this.projection.inverseBoundingBox(bbox[0], bbox[1], bbox[2], bbox[3]);
+      if (mergedDataRect === null) {
+        mergedDataRect = dataRect;
+      } else {
+        mergedDataRect = GeographicRectUtils.union(dataRect, mergedDataRect);
+      }
+    }
+  }
+  return mergedDataRect;
+};
+
+//   TODO 試験
+MapView.prototype.getGeographicRectBounds = function() {
+  var divide = this.calcStrategy_.calculate(this.viewWindowManager_.getRotate());
+  var bbox1 = this.viewWindowManager_.getViewWindowBounds();
+  var dataRect1 = this.projection.inverseBoundingBox(bbox1[0], bbox1[1], bbox1[2], bbox1[3]);
+  if (divide === 1) {
+    return dataRect1;
+  }
+  var mergedDataRect = this.getDividedGeographicRectBounds_(divide);
+  //  分割した場合としない場合で範囲の狭い方を採用する
+  return GeographicRectUtils.intersection(dataRect1, mergedDataRect);
 };
 
 MapView.prototype.invalidate = function() {
@@ -492,8 +716,10 @@ MapView.prototype.render = function(force) {
   var center = this.projection.getProjCenter();
   this.imageProj.setProjCenter(center.lambda, center.phi);
 
-  var window = this.viewWindowManager_.getViewWindow();
-  this.imageProj.setViewWindow(window[0], window[1], window[2], window[3]);
+  var vc = this.viewWindowManager_.viewCenter;
+  var vs = this.viewWindowManager_.viewWindowSize;
+  var theta = this.viewWindowManager_.getRotate();
+  this.imageProj.setTransform(vc[0], vc[1], vs[0], vs[1], theta);
 
   //
   for (var k = 0; k < this.layers_.length; ++k) {
@@ -579,7 +805,7 @@ var TileTextureLayer = function(layerId, coordType, style, tileOpts, cacheOpts) 
   //
   this.tileManager = new TileManager(tileOpts);
   this.prevTileInfos_ = null;
-  this.prevWindow_ = null;
+  this.prevTransform_ = null;
   //
   var observer = function() {
     this.markInvalid();
@@ -656,7 +882,7 @@ TileTextureLayer.prototype.render = function(mapView) {
 
 
 TileTextureLayer.prototype.clearTileInfoCache_ = function() {
-  this.prevWindow_ = null;
+  this.prevTransform_ = null;
   this.prevTileInfos_ = null;
   this.markInvalid();
 };
@@ -672,19 +898,20 @@ TileTextureLayer.prototype.requestImages_ = function(gl, tileInfos) {
 };
 
 TileTextureLayer.prototype.getTileInfos_ = function(mapView) {
-  var window = mapView.viewWindowManager_.getViewWindow();
-  if ( this.prevTileInfos_ != null && this.prevWindow_ != null ) {
-    if (window[0] == this.prevWindow_[0] && window[1] == this.prevWindow_[1] &&
-      window[2] == this.prevWindow_[2] && window[3] == this.prevWindow_[3]) {
-        return this.prevTileInfos_;
+  //  TODO 効率化、試験
+  if ( this.prevTileInfos_ != null && this.prevTransform_ != null ) {
+    if (this.prevTransform_.equals(mapView.viewWindowManager_.transform_)) {
+      return this.prevTileInfos_;
     }
     this.prevTileInfos_ = null;
-    this.prevWindow_ = null;
+    this.prevTransform_ = null;
   }
-  var dataRect = mapView.projection.inverseBoundingBox(window[0], window[1], window[2], window[3]);
-  var level = (this.tileManager.dataLevelDef != null) ? this.tileManager.dataLevelDef(window, dataRect) : 0;
+  var dataRect = mapView.getGeographicRectBounds();
+  var viewWindowScale = mapView.viewWindowManager_.getViewWindowScale();
+  var level = (this.tileManager.dataLevelDef != null) ? this.tileManager.dataLevelDef(viewWindowScale, dataRect) : 0;
   var tileInfos = this.tileManager.getTileInfos(dataRect, level);
-  this.prevWindow_ = window;
+  //if (tileInfos.length == 0)  throw tileInfos;     //   TODO DEBUG!!
+  this.prevTransform_ = mapView.viewWindowManager_.transform_.clone();
   this.prevTileInfos_ = tileInfos;
   return tileInfos;
 };
@@ -828,8 +1055,8 @@ GraticuleLayer.prototype.render = function(mapView) {
 
     mapView.imageProj.setCoordTypeData();
     mapView.imageProj.setColor(this.color);
-    //  TODO 効率化、リファクタリング
-    var window = mapView.getWindow();
+    //  TODO 効率化、リファクタリング -> 回転変換を加えてより非効率になった。要修正。
+    var window = mapView.getWindowBounds();
     var dataRect = mapView.projection.inverseBoundingBox(window[0], window[1], window[2], window[3]);
     this.graticuleRenderer_.renderLines(window, dataRect, this.intervalDegrees);
   }
@@ -841,4 +1068,5 @@ GraticuleLayer.prototype.render = function(mapView) {
 if (typeof module != 'undefined' && module.exports) {
   module.exports = MapView;
   module.exports.TileManager = TileManager;
+  module.exports.ViewWindowManager = ViewWindowManager;
 }
