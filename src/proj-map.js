@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.23  2018-11-18
+ * Raster Map Projection v0.0.24  2018-12-02
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -8,7 +8,6 @@
 
 if (typeof module!='undefined' && module.exports) {
   var RasterProjCommon = require('./rasterproj-common.js');
-  var RasterMapProjection = RasterProjCommon.RasterMapProjection;
   var LambdaRangeUtils = RasterProjCommon.LambdaRangeRectUtils;
   var GeographicRectUtils = RasterProjCommon.GeographicRectUtils;
   var ProjMath = RasterProjCommon.ProjMath;
@@ -416,28 +415,15 @@ ViewWindowManager.prototype.setViewWindowByCenter = function(cx, cy, w, h) {
   this.transform_ = this.calcTransform_();
 };
 
-//  TODO deprecatedを検討
+//  MEMO deprecatedを検討 -> 回転無しでViewWindowの設定
 ViewWindowManager.prototype.setViewWindow = function(x1, y1, x2, y2) {
-  //this.rect = [x1, y1, x2, y2];
-  //  TODO 暫定対応
   var cx = (x2 + x1) / 2;
   var cy = (y2 + y1) / 2;
   var w = (x2 - x1);
   var h = (y2 - y1);
   this.viewCenter = [cx, cy];
   this.viewWindowSize = [w, h];
-  this.transform_ = this.calcTransform_();
-};
-
-//  TODO deprecatedを検討
-ViewWindowManager.prototype.getViewWindow = function() {
-  //return this.rect.slice(0);   //  copy
-  //  TODO 暫定対応
-  var x1 = this.viewCenter[0] - this.viewWindowSize[0] / 2;
-  var y1 = this.viewCenter[1] - this.viewWindowSize[1] / 2;
-  var x2 = this.viewCenter[0] + this.viewWindowSize[0] / 2;
-  var y2 = this.viewCenter[1] + this.viewWindowSize[1] / 2;
-  return [ x1, y1, x2, y2 ];
+  this.setRotate(0);   //  this.calcTransform_() はsetRotate(0)内で実施しているため不要
 };
 
 //  MEMO このAPI単体としては対応済み（ただし確認が不十分）
@@ -515,20 +501,17 @@ GeographicRectBoundsCalculateStrategy_.prototype.calculate = function(theta) {
 
 /* ------------------------------------------------------------ */
 
-//  TODO tileOpts, cacheOptsの必要性の検証。
-//  TODO RasterMapProjectionを外部に出すことを検討
 /**
  * Map View
- * @param {object} gl
- * @param {object} ProjAEQD or ProjLAEA
+ *
+ * @param {ProjShaderProgram} imageProj
+ * @param {Projection} ProjAEQD or ProjLAEA
  * @param {number} numLevels
  * @constructor
  */
-var MapView = function(gl, proj, canvasSize, tileOpts, cacheOpts) {
-  this.gl = gl;
+var MapView = function(imageProj, proj, canvasSize) {
+  this.imageProj = imageProj;
   this.projection = proj;
-  this.imageProj = RasterMapProjection.createShaderProgram(gl);
-  this.imageProj.init(proj.getVertexShaderStr(), proj.getFragmentShaderStr());
   //
   var viewWindowOpts = {
     zoomInLimit: Math.PI / 20.0,
@@ -574,24 +557,13 @@ MapView.prototype.rotate = function(dt) {
   this.invalidate();
 };
 
-//   TODO deprecatedとすることを検討
-MapView.prototype.getWindow = function() {
-  return this.viewWindowManager_.getViewWindow();
-};
-
 MapView.prototype.getWindowBounds = function() {
   return this.viewWindowManager_.getViewWindowBounds();
 };
 
-//  TODO deprecated検討
+//  MEMO deprecatedを検討 -> 回転無しでViewWindowの設定
 MapView.prototype.setWindow = function(x1, y1, x2, y2) {
-  //this.viewWindowManager_.setViewWindow(x1, y1, x2, y2);
-  //  TODO 暫定対応
-  var cx = (x1 + x2) / 2;
-  var cy = (y1 + y2) / 2;
-  var w = (x2 - x1);
-  var h = (y2 - y1);
-  this.viewWindowManager_.setViewWindowByCenter(cx, cy, w, h);
+  this.viewWindowManager_.setViewWindow(x1, y1, x2, y2);
   this.invalidateLayers();
   this.invalidate();
 };
@@ -683,7 +655,7 @@ MapView.prototype.loadData = function() {
 };
 
 MapView.prototype.createTexture = function(img) {
-  return ImageUtils.createTexture(this.gl, img);
+  return this.imageProj.createTexture(img);
 };
 
 MapView.prototype.addLayer = function(layer) {
@@ -831,7 +803,7 @@ TileTextureLayer.prototype.invalidate = function() {
 TileTextureLayer.prototype.loadData = function(mapView) {
   if ( this.tileManager.tileUrlDef == null )   return -1;
   var tileInfos = this.getTileInfos_(mapView);
-  var count = this.requestImages_(mapView.gl, tileInfos);
+  var count = this.requestImages_(mapView.imageProj.getGLContext(), tileInfos);
   this.markInvalid();
   return count;
 };
@@ -854,7 +826,7 @@ TileTextureLayer.prototype.resetImages = function() {
 TileTextureLayer.prototype.render = function(mapView) {
   if ( this.tileManager.tileUrlDef == null )   return;
   var tileInfos = this.getTileInfos_(mapView);
-  this.requestImages_(mapView.gl, tileInfos);
+  this.requestImages_(mapView.imageProj.getGLContext(), tileInfos);
 
   var textures = [];
   for (var i = 0; i < tileInfos.length; ++i ) {

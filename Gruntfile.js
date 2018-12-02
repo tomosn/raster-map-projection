@@ -30,6 +30,7 @@ module.exports = function (grunt) {
             '/*!',
             ' * <%= pkg.name %> <%= pkg.version %>  <%= grunt.template.today("yyyy-mm-dd") %>',
             ' *   https://github.com/tomosn/raster-map-projection',
+            ' *   <%= pkg.description %>',
             ' * Copyright (C) 2016-2018 <%= pkg.author %>',
             ' * All rights reserved. ',
             ' * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)',

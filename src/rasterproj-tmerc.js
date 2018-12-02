@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.22  2018-01-02
+ * Raster Map Projection v0.0.24  2018-12-02
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -16,8 +16,10 @@ RasterMapProjection.createProjection = function(lam0, phi0, optDivN) {
   return new ProjTMERC(lam0, phi0);
 };
 
-RasterMapProjection.createShaderProgram = function(gl) {
-  return new TMERCProjShaderProgram(gl);
+RasterMapProjection.createShaderProgram = function(gl, proj) {
+  var imageProj = new TMERCProjShaderProgram(gl);
+  imageProj.init(proj.getVertexShaderStr(), proj.getFragmentShaderStr());
+  return imageProj;
 };
 
 // -----------------------------------------------------

@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.23  2018-11-18
+ * Raster Map Projection v0.0.24  2018-12-02
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -28,8 +28,10 @@ RasterMapProjection.createProjection = function(lam0, phi0, optDivN) {
   return null;
 };
 
-RasterMapProjection.createShaderProgram = function(gl) {
-  return new ProjShaderProgram(gl);
+RasterMapProjection.createShaderProgram = function(gl, proj) {
+  var imageProj = new ProjShaderProgram(gl);
+  imageProj.init(proj.getVertexShaderStr(), proj.getFragmentShaderStr());
+  return imageProj;
 };
 
 
@@ -436,45 +438,17 @@ ProjShaderProgram.TEXTURE_TYPE_SURFACE = 2;        //  SurfaceTexture
 
 
 /**
+ * @return WebGL Context
+ */
+ProjShaderProgram.prototype.getGLContext = function() {
+  return this.gl_;
+};
+
+/**
  * @param color
  */
 ProjShaderProgram.prototype.setColor = function(color) {
   this.gl_.uniform4f(this.locUnifColor_, color.r, color.g, color.b, color.a);
-};
-
-/**
- * @param x1
- * @param y1
- * @param x2
- * @param y2
- * @param theta 回転角
- */
-//  TODO deprecatedも検討する。
-ProjShaderProgram.prototype.setViewWindow = function(x1, y1, x2, y2, theta) {
-  //  uFwdTransform : [(x1, y1)-(x2, y2)] -> [(-1.0, -1.0)-(+1.0, +1.0)]
-  //  uInvTransform : [(-1.0, -1.0)-(+1.0, +1.0)] -> [(x1, y1)-(x2, y2)]
-
-  var dx = (x2 - x1) / 2.0;
-  var dy = (y2 - y1) / 2.0;
-  var mx = (x1 + x2) / 2.0;
-  var my = (y1 + y2) / 2.0;
-
-  var cost = Math.cos(theta);
-  var sint = Math.sin(theta);
-
-  var mat = [
-    cost/dx, sint/dx, 0.0,
-    -sint/dy, cost/dy, 0.0,
-    -cost*mx/dx + sint*my/dy, -sint*mx/dx - cost*my/dy, 1.0
-  ];   //   transpose
-  var inv = [
-    cost*dx, -dy*sint, 0.0,
-    sint*dx, cost*dy, 0.0,
-    mx, my, 1.0
-  ];   //  transpose
-
-  this.gl_.uniformMatrix3fv(this.locUnifFwdTransform_, false, mat);
-  this.gl_.uniformMatrix3fv(this.locUnifInvTransform_, false, inv);
 };
 
 //  MEMO setViewWindowに代わる変換。
@@ -577,6 +551,13 @@ ProjShaderProgram.prototype.clear = function(canvasSize) {
  */
 ProjShaderProgram.prototype.setOpacity = function(opacity) {
   this.gl_.uniform1f(this.locUnifOpacity_, opacity);
+};
+
+/**
+ * @param Image
+ */
+ProjShaderProgram.prototype.createTexture = function(img) {
+  return ImageUtils.createTexture(this.gl_, img);
 };
 
 /**
