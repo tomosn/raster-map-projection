@@ -12,7 +12,7 @@ module.exports = function (grunt) {
         'src/rasterproj-laea.js',
         'src/rasterproj-tmerc.js',
         'src/proj-map.js',
-        'src/graticule-renderer.js',
+        'src/graticule-renderer.js'
       ],
       options: {
         jshintrc: '.jshintrc'
@@ -53,7 +53,7 @@ module.exports = function (grunt) {
 
   //  Grunt plugins
   grunt.loadNpmTasks('grunt-contrib-jshint');
-  grunt.loadNpmTasks('grunt-contrib-uglify');
+  grunt.loadNpmTasks('grunt-contrib-uglify-es');
 
   //  default task
   grunt.registerTask('default', ['jshint', 'uglify']);

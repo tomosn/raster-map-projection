@@ -3,6 +3,7 @@
   "indent" : 2,
   "maxlen" : 160,
   "unused" : "vars",
+  "esversion": 6,
 
   //  global variables
   "undef" : false,

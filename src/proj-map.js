@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.24  2018-12-02
+ * Raster Map Projection v0.0.25  2018-12-30
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -22,7 +22,7 @@ if (typeof module!='undefined' && module.exports) {
  * @param {number} numLevels
  * @constructor
  */
-var TileManager = function(tileOpts) {
+function TileManager(tileOpts) {
   this.rootNumX = 2;
   this.rootNumY = 1;
   this.rootTileSizeX = Math.PI;
@@ -65,14 +65,14 @@ var TileManager = function(tileOpts) {
       this.tileUrlDef = tileOpts.tileUrlDef;
     }
   }
-};
+}
 
 TileManager.prototype.getTileX_ = function(scale, lam) {
   return Math.floor( scale * (lam - this.tileOrigin[0]) / this.rootTileSizeX );
 };
 
 TileManager.prototype.getTileY_ = function(scale, phi) {
-  var sign = this.inverseY ? -1 : +1;
+  const sign = this.inverseY ? -1 : +1;
   return Math.floor( sign * scale * (phi - this.tileOrigin[1]) / this.rootTileSizeY );
 };
 
@@ -81,14 +81,14 @@ TileManager.prototype.getTileNumX_ = function(scale) {
 };
 
 TileManager.prototype.getTileNumY_ = function(scale) {
-  var sign = this.inverseY ? -1 : +1;
-  var phi = this.inverseY ? this.tileDomain[1] : this.tileDomain[3];
+  const sign = this.inverseY ? -1 : +1;
+  const phi = this.inverseY ? this.tileDomain[1] : this.tileDomain[3];
   return Math.ceil( sign * scale * (phi - this.tileOrigin[1]) / this.rootTileSizeY );
 };
 
 TileManager.prototype.getScale_ = function(level) {
-  var p = Math.round(ProjMath.clamp(level, 0, this.numLevels-1));
-  var s = (1 << p);
+  const p = Math.round(ProjMath.clamp(level, 0, this.numLevels-1));
+  const s = (1 << p);
   return s;
 };
 
@@ -96,15 +96,15 @@ TileManager.prototype.getScale_ = function(level) {
  *
  */
 TileManager.prototype.getTileInfos = function(dataRect, level) {
-  var scale = this.getScale_(level);
-  var numX = this.getTileNumX_(scale);
-  var lams = LambdaRangeUtils.normalize(dataRect.lambda);
-  var idxX1 = this.getTileX_(scale, lams[0]);
-  var idxX2 = this.getTileX_(scale, lams[1]);
+  const scale = this.getScale_(level);
+  const numX = this.getTileNumX_(scale);
+  const lams = LambdaRangeUtils.normalize(dataRect.lambda);
+  const idxX1 = this.getTileX_(scale, lams[0]);
+  const idxX2 = this.getTileX_(scale, lams[1]);
 
-  var numY = this.getTileNumY_(scale);
-  var idxY1;
-  var idxY2;
+  const numY = this.getTileNumY_(scale);
+  let idxY1;
+  let idxY2;
   if ( !this.inverseY ) {
     idxY1 = this.getTileY_(scale, dataRect.phi[0]);
     idxY2 = this.getTileY_(scale, dataRect.phi[1]);
@@ -113,26 +113,26 @@ TileManager.prototype.getTileInfos = function(dataRect, level) {
     idxY2 = this.getTileY_(scale, dataRect.phi[0]);
   }
 
-  var ret = [];
+  const ret = [];
 
-  var iyMin = numY + 1;
-  for ( var idxY = idxY1; idxY <= idxY2; ++idxY ) {
-    var iy = idxY % numY;   //  正規化    //  TODO idxYの正規化は不要？
+  let iyMin = numY + 1;
+  for ( let idxY = idxY1; idxY <= idxY2; ++idxY ) {
+    const iy = idxY % numY;   //  正規化    //  TODO idxYの正規化は不要？
     if ( iyMin == iy )   break;
     if ( iy < iyMin )    iyMin = iy;
 
-    var ixMin = numX + 1;
-    for ( var idxX = idxX1; idxX <= idxX2; ++idxX ) {
-      var ix = idxX % numX;   //  正規化
+    let ixMin = numX + 1;
+    for ( let idxX = idxX1; idxX <= idxX2; ++idxX ) {
+      const ix = idxX % numX;   //  正規化
       if ( ixMin == ix )   break;
       if ( ix < ixMin )   ixMin = ix;
 
-      var str = this.tileUrlDef(level, ix, iy);
-      var x1 = (this.rootTileSizeX * ix / scale) + this.tileOrigin[0];
-      var x2 = (this.rootTileSizeX * (ix + 1) / scale) + this.tileOrigin[0];
+      const str = this.tileUrlDef(level, ix, iy);
+      const x1 = (this.rootTileSizeX * ix / scale) + this.tileOrigin[0];
+      const x2 = (this.rootTileSizeX * (ix + 1) / scale) + this.tileOrigin[0];
 
-      var y1;
-      var y2;
+      let y1;
+      let y2;
       if ( !this.inverseY ) {
         y1 = (this.rootTileSizeY * iy / scale) + this.tileOrigin[1];
         y2 = (this.rootTileSizeY * (iy + 1) / scale) + this.tileOrigin[1];
@@ -141,7 +141,7 @@ TileManager.prototype.getTileInfos = function(dataRect, level) {
         y2 = (-this.rootTileSizeY * iy / scale) + this.tileOrigin[1];
       }
 
-      var clipRect = null;
+      let clipRect = null;
       if ( x1 < this.tileDomain[0] || y1 < this.tileDomain[1] || this.tileDomain[2] < x2 || this.tileDomain[3] < y2 ) {
         clipRect = [0.0, 0.0, 1.0, 1.0];
         if (x1 < this.tileDomain[0]) {
@@ -174,7 +174,7 @@ TileManager.prototype.getTileInfos = function(dataRect, level) {
  * 画像キャッシュ
  * @constructor
  */
-var ImageCache = function(observer, cacheOpts) {
+function ImageCache(observer, cacheOpts) {
   this.num = 32;             //  default: 32
   this.crossOrigin = null;
   this.textures = {};
@@ -190,18 +190,18 @@ var ImageCache = function(observer, cacheOpts) {
       this.crossOrigin = cacheOpts.crossOrigin;
     }
   }
-};
+}
 
 
 ImageCache.prototype.loadImage_ = function(gl, url, info) {
   this.loading[url] = true;
-  var image = new Image();
+  const image = new Image();
   if ( this.crossOrigin != null ) {
     image.crossOrigin = this.crossOrigin;
   }
   image.onload = function() {
     this.ongoingImageLoads.splice(this.ongoingImageLoads.indexOf(image), 1);
-    var tex = ImageUtils.createTexture(gl, image);
+    const tex = ImageUtils.createTexture(gl, image);
     if ( tex ) {
       this.textures[url] = [tex, info];
     }
@@ -222,13 +222,13 @@ ImageCache.prototype.loadImageIfAbsent = function(gl, url, info) {
 
 
 ImageCache.prototype.getTexture = function(url) {
-  var tex = this.textures[url];
+  const tex = this.textures[url];
   return tex;
 };
 
 
 ImageCache.prototype.clearOngoingImageLoads = function() {
-  for (var i = 0; i < this.ongoingImageLoads.length; i++) {
+  for (let i = 0; i < this.ongoingImageLoads.length; i++) {
     this.ongoingImageLoads[i].onload = undefined;
   }
   this.ongoingImageLoads = [];
@@ -239,14 +239,14 @@ ImageCache.prototype.clearOngoingImageLoads = function() {
 /**
  * 回転を含む座標系間の変換
  */
-var CoordTransform = function(cxx, cxy, cyx, cyy, tx, ty) {
+function CoordTransform(cxx, cxy, cyx, cyy, tx, ty) {
   this.cxx_ = cxx;
   this.cxy_ = cxy;
   this.cyx_ = cyx;
   this.cyy_ = cyy;
   this.tx_  = tx;
   this.ty_  = ty;
-};
+}
 
 CoordTransform.prototype.clone = function() {
   return new CoordTransform(this.cxx_, this.cxy_, this.cyx_, this.cyy_, this.tx_, this.ty_);
@@ -262,13 +262,13 @@ CoordTransform.prototype.equals = function(dst) {
 };
 
 CoordTransform.prototype.forwardPoint = function(x, y) {
-  var dstX = this.cxx_ * x + this.cxy_ * y + this.tx_;
-  var dstY = this.cyx_ * x + this.cyy_ * y + this.ty_;
+  const dstX = this.cxx_ * x + this.cxy_ * y + this.tx_;
+  const dstY = this.cyx_ * x + this.cyy_ * y + this.ty_;
   return [dstX, dstY];
 };
 
 CoordTransform.prototype.forwardRectBounds = function(x1, y1, x2, y2) {
-  var xmin, xmax, ymin, ymax;
+  let xmin, xmax, ymin, ymax;
   if (x1 < x2) {
     xmin = x1;
     xmax = x2;
@@ -284,7 +284,7 @@ CoordTransform.prototype.forwardRectBounds = function(x1, y1, x2, y2) {
     ymax = y1;
   }
 
-  var dstX1, dstX2, dstY1, dstY2;
+  let dstX1, dstX2, dstY1, dstY2;
   dstX1 = dstX2 = this.tx_;
   dstY1 = dstY2 = this.ty_;
   if (0.0 <= this.cxx_) {
@@ -321,7 +321,7 @@ CoordTransform.prototype.forwardRectBounds = function(x1, y1, x2, y2) {
 
 /* ------------------------------------------------------------ */
 
-var ViewWindowManager = function(viewRect, canvasSize, opts) {
+function ViewWindowManager(viewRect, canvasSize, opts) {
   this.canvasSize = {width: canvasSize.width, height: canvasSize.height};
   //
   this.viewRect_ = viewRect;   //  投影後の全体領域, projに依存する定数
@@ -337,40 +337,40 @@ var ViewWindowManager = function(viewRect, canvasSize, opts) {
     }
   }
   //
-  var cx = (this.viewRect_[2] + this.viewRect_[0]) / 2;
-  var cy = (this.viewRect_[3] + this.viewRect_[1]) / 2;
-  var w = (this.viewRect_[2] - this.viewRect_[0]);
-  var h = (this.viewRect_[3] - this.viewRect_[1]);
+  const cx = (this.viewRect_[2] + this.viewRect_[0]) / 2;
+  const cy = (this.viewRect_[3] + this.viewRect_[1]) / 2;
+  const w = (this.viewRect_[2] - this.viewRect_[0]);
+  const h = (this.viewRect_[3] - this.viewRect_[1]);
   this.viewCenter = [cx, cy];
   this.viewWindowSize = [w, h];
   //
   this.rot_ = null;
   this.setRotate(0.0);   //  ViewとWindow間の回転角
   this.transform_ = this.calcTransform_();
-};
+}
 
 ViewWindowManager.prototype.calcTransform_ = function() {
-  var cx = this.viewCenter[0];
-  var cy = this.viewCenter[1];
-  var dx = this.viewWindowSize[0] / 2.0;
-  var dy = this.viewWindowSize[1] / 2.0;
-  var sx = this.viewWindowSize[0] / this.canvasSize.width;
-  var sy = this.viewWindowSize[1] / this.canvasSize.height;
+  const cx = this.viewCenter[0];
+  const cy = this.viewCenter[1];
+  const dx = this.viewWindowSize[0] / 2.0;
+  const dy = this.viewWindowSize[1] / 2.0;
+  const sx = this.viewWindowSize[0] / this.canvasSize.width;
+  const sy = this.viewWindowSize[1] / this.canvasSize.height;
 
-  var cxx =  this.rot_.cost*sx;
-  var cxy = -this.rot_.sint*sy;
-  var tx  = cx - this.rot_.cost*dx - this.rot_.sint*dy + this.rot_.sint*sy * this.canvasSize.height;
+  const cxx =  this.rot_.cost*sx;
+  const cxy = -this.rot_.sint*sy;
+  const tx  = cx - this.rot_.cost*dx - this.rot_.sint*dy + this.rot_.sint*sy * this.canvasSize.height;
 
-  var cyx = -this.rot_.sint*sx;
-  var cyy = -this.rot_.cost*sy;
-  var ty  = cy + this.rot_.sint*dx - this.rot_.cost*dy + this.rot_.cost*sy * this.canvasSize.height;
+  const cyx = -this.rot_.sint*sx;
+  const cyy = -this.rot_.cost*sy;
+  const ty  = cy + this.rot_.sint*dx - this.rot_.cost*dy + this.rot_.cost*sy * this.canvasSize.height;
 
   return new CoordTransform(cxx, cxy, cyx, cyy, tx, ty);
 };
 
 ViewWindowManager.prototype.setRotate = function(theta) {
-  var ct = Math.cos(theta);
-  var st = Math.sin(theta);
+  const ct = Math.cos(theta);
+  const st = Math.sin(theta);
   this.rot_ = { theta: theta, cost: ct, sint: st };
   this.transform_ = this.calcTransform_();
 };
@@ -380,14 +380,14 @@ ViewWindowManager.prototype.getRotate = function() {
 };
 
 ViewWindowManager.prototype.rotate = function(dt) {
-  var theta = this.rot_.theta + dt;
-  var ct = Math.cos(theta);
-  var st = Math.sin(theta);
+  const theta = this.rot_.theta + dt;
+  const ct = Math.cos(theta);
+  const st = Math.sin(theta);
   //
-  var cosdt = Math.cos(dt);
-  var sindt = Math.sin(dt);
-  var dstX =  this.viewCenter[0] * cosdt + this.viewCenter[1] * sindt;
-  var dstY = -this.viewCenter[0] * sindt + this.viewCenter[1] * cosdt;
+  const cosdt = Math.cos(dt);
+  const sindt = Math.sin(dt);
+  const dstX =  this.viewCenter[0] * cosdt + this.viewCenter[1] * sindt;
+  const dstY = -this.viewCenter[0] * sindt + this.viewCenter[1] * cosdt;
   //
   this.viewCenter = [dstX, dstY];
   this.rot_ = { theta: theta, cost: ct, sint: st };
@@ -417,10 +417,10 @@ ViewWindowManager.prototype.setViewWindowByCenter = function(cx, cy, w, h) {
 
 //  MEMO deprecatedを検討 -> 回転無しでViewWindowの設定
 ViewWindowManager.prototype.setViewWindow = function(x1, y1, x2, y2) {
-  var cx = (x2 + x1) / 2;
-  var cy = (y2 + y1) / 2;
-  var w = (x2 - x1);
-  var h = (y2 - y1);
+  const cx = (x2 + x1) / 2;
+  const cy = (y2 + y1) / 2;
+  const w = (x2 - x1);
+  const h = (y2 - y1);
   this.viewCenter = [cx, cy];
   this.viewWindowSize = [w, h];
   this.setRotate(0);   //  this.calcTransform_() はsetRotate(0)内で実施しているため不要
@@ -454,10 +454,10 @@ ViewWindowManager.prototype.getViewWindowCenter = function() {
 
 //  MEMO 対応済み、回転への再調整済み
 ViewWindowManager.prototype.moveWindow = function(dx, dy) {
-  var sx = this.viewWindowSize[0] / this.canvasSize.width;
-  var sy = this.viewWindowSize[1] / this.canvasSize.height;  //  画面座標の上下は逆
-  var cx = this.viewCenter[0] - sx*this.rot_.cost*dx + sy*this.rot_.sint*dy;
-  var cy = this.viewCenter[1] + sx*this.rot_.sint*dx + sy*this.rot_.cost*dy;  //  画面座標の上下は逆
+  const sx = this.viewWindowSize[0] / this.canvasSize.width;
+  const sy = this.viewWindowSize[1] / this.canvasSize.height;  //  画面座標の上下は逆
+  const cx = this.viewCenter[0] - sx*this.rot_.cost*dx + sy*this.rot_.sint*dy;
+  const cy = this.viewCenter[1] + sx*this.rot_.sint*dx + sy*this.rot_.cost*dy;  //  画面座標の上下は逆
   this.viewCenter = [cx, cy];
   this.transform_ = this.calcTransform_();
 };
@@ -466,9 +466,9 @@ ViewWindowManager.prototype.moveWindow = function(dx, dy) {
 ViewWindowManager.prototype.zoomWindow = function(dz) {
   //  画面上でのY方向の長さをdzピクセル分だけ絞り込んだ部分の領域に拡大表示する。
   //  X方向はそれに合わせて等縮尺で拡大する。
-  var s = (this.canvasSize.height - dz) / this.canvasSize.height;
-  var w2 = s * this.viewWindowSize[0] / 2;
-  var h2 = s * this.viewWindowSize[1] / 2;
+  const s = (this.canvasSize.height - dz) / this.canvasSize.height;
+  const w2 = s * this.viewWindowSize[0] / 2;
+  const h2 = s * this.viewWindowSize[1] / 2;
 
   if ( this.zoomInLimit_ != null && (w2 < this.zoomInLimit_ || h2 < this.zoomInLimit_) )  return;
   if ( this.zoomOutLimit_ != null && (this.zoomOutLimit_ < w2 || this.zoomOutLimit_ < h2) )  return;
@@ -487,12 +487,12 @@ ViewWindowManager.prototype.getViewPointFromWindow = function(x, y) {
 /**
  * MapViewにおいてデータ座標系上のBoundingRectを算出する際の計算の効率化の判定処理
  */
-var GeographicRectBoundsCalculateStrategy_ = function(theta0) {
+function GeographicRectBoundsCalculateStrategy_(theta0) {
   this.theta0_ = theta0;
-};
+}
 
 GeographicRectBoundsCalculateStrategy_.prototype.calculate = function(theta) {
-  var t = theta - Math.floor(theta * 2/Math.PI) * Math.PI/2;
+  const t = theta - Math.floor(theta * 2/Math.PI) * Math.PI/2;
   if (t < this.theta0_ || Math.PI/2 - this.theta0_ < t) {
     return 1;
   }
@@ -509,15 +509,15 @@ GeographicRectBoundsCalculateStrategy_.prototype.calculate = function(theta) {
  * @param {number} numLevels
  * @constructor
  */
-var MapView = function(imageProj, proj, canvasSize) {
+function MapView(imageProj, proj, canvasSize) {
   this.imageProj = imageProj;
   this.projection = proj;
   //
-  var viewWindowOpts = {
+  const viewWindowOpts = {
     zoomInLimit: Math.PI / 20.0,
     zoomOutLimit: Math.PI * 20
   };
-  var rangeRect = this.projection.getRange();
+  const rangeRect = this.projection.getRange();
   this.viewWindowManager_ = new ViewWindowManager(rangeRect, canvasSize, viewWindowOpts);
   //
   this.calcStrategy_ = new GeographicRectBoundsCalculateStrategy_(Math.PI/16);
@@ -526,7 +526,7 @@ var MapView = function(imageProj, proj, canvasSize) {
   this.nameToLayers_ = {};
   //
   this.isValid_ = false;
-};
+}
 
 MapView.prototype.setProjCenter = function(lam, phi) {
   this.projection.setProjCenter(lam, phi);
@@ -596,7 +596,7 @@ MapView.prototype.setViewCenterPoint = function(cx, cy) {
 
 //  TODO getDataPointFromWindow等に名称変更を検討
 MapView.prototype.getLambdaPhiPointFromWindow = function(x, y) {
-  var viewPos = this.viewWindowManager_.getViewPointFromWindow(x, y);
+  const viewPos = this.viewWindowManager_.getViewPointFromWindow(x, y);
   return this.projection.inverse(viewPos[0], viewPos[1]);
 };
 
@@ -605,15 +605,15 @@ MapView.prototype.getViewPointFromWindow = function(x, y) {
 };
 
 MapView.prototype.getDividedGeographicRectBounds_ = function(divide) {
-  var mergedDataRect = null;
-  for (var j = 0; j < divide; j++) {
-    var y1 = j * this.viewWindowManager_.canvasSize.height / divide;
-    var y2 = (j + 1) * this.viewWindowManager_.canvasSize.height / divide;
-    for (var i = 0; i < divide; i++) {
-      var x1 = i * this.viewWindowManager_.canvasSize.width / divide;
-      var x2 = (i + 1) * this.viewWindowManager_.canvasSize.width / divide;
-      var bbox = this.viewWindowManager_.getViewRectBoundsFromWindow(x1, y1, x2, y2);
-      var dataRect = this.projection.inverseBoundingBox(bbox[0], bbox[1], bbox[2], bbox[3]);
+  let mergedDataRect = null;
+  for (let j = 0; j < divide; j++) {
+    const y1 = j * this.viewWindowManager_.canvasSize.height / divide;
+    const y2 = (j + 1) * this.viewWindowManager_.canvasSize.height / divide;
+    for (let i = 0; i < divide; i++) {
+      const x1 = i * this.viewWindowManager_.canvasSize.width / divide;
+      const x2 = (i + 1) * this.viewWindowManager_.canvasSize.width / divide;
+      const bbox = this.viewWindowManager_.getViewRectBoundsFromWindow(x1, y1, x2, y2);
+      const dataRect = this.projection.inverseBoundingBox(bbox[0], bbox[1], bbox[2], bbox[3]);
       if (mergedDataRect === null) {
         mergedDataRect = dataRect;
       } else {
@@ -626,13 +626,13 @@ MapView.prototype.getDividedGeographicRectBounds_ = function(divide) {
 
 //   TODO 試験
 MapView.prototype.getGeographicRectBounds = function() {
-  var divide = this.calcStrategy_.calculate(this.viewWindowManager_.getRotate());
-  var bbox1 = this.viewWindowManager_.getViewWindowBounds();
-  var dataRect1 = this.projection.inverseBoundingBox(bbox1[0], bbox1[1], bbox1[2], bbox1[3]);
+  const divide = this.calcStrategy_.calculate(this.viewWindowManager_.getRotate());
+  const bbox1 = this.viewWindowManager_.getViewWindowBounds();
+  const dataRect1 = this.projection.inverseBoundingBox(bbox1[0], bbox1[1], bbox1[2], bbox1[3]);
   if (divide === 1) {
     return dataRect1;
   }
-  var mergedDataRect = this.getDividedGeographicRectBounds_(divide);
+  const mergedDataRect = this.getDividedGeographicRectBounds_(divide);
   //  分割した場合としない場合で範囲の狭い方を採用する
   return GeographicRectUtils.intersection(dataRect1, mergedDataRect);
 };
@@ -642,13 +642,13 @@ MapView.prototype.invalidate = function() {
 };
 
 MapView.prototype.invalidateLayers = function() {
-  for (var j = 0; j < this.layers_.length; ++j) {
+  for (let j = 0; j < this.layers_.length; ++j) {
     this.layers_[j].invalidate();
   }
 };
 
 MapView.prototype.loadData = function() {
-  for (var j = 0; j < this.layers_.length; ++j) {
+  for (let j = 0; j < this.layers_.length; ++j) {
     this.layers_[j].loadData(this);
   }
   this.invalidate();
@@ -676,7 +676,7 @@ MapView.prototype.getLayerById = function(layerId) {
 
 MapView.prototype.render = function(force) {
   if ( force === true ) {
-    for (var j = 0; j < this.layers_.length; ++j) {
+    for (let j = 0; j < this.layers_.length; ++j) {
       this.layers_[j].markInvalid();
     }
   } else if ( !this.requireRender_() ) {
@@ -685,16 +685,16 @@ MapView.prototype.render = function(force) {
 
   this.imageProj.clear(this.viewWindowManager_.canvasSize);
 
-  var center = this.projection.getProjCenter();
+  const center = this.projection.getProjCenter();
   this.imageProj.setProjCenter(center.lambda, center.phi);
 
-  var vc = this.viewWindowManager_.viewCenter;
-  var vs = this.viewWindowManager_.viewWindowSize;
-  var theta = this.viewWindowManager_.getRotate();
+  const vc = this.viewWindowManager_.viewCenter;
+  const vs = this.viewWindowManager_.viewWindowSize;
+  const theta = this.viewWindowManager_.getRotate();
   this.imageProj.setTransform(vc[0], vc[1], vs[0], vs[1], theta);
 
   //
-  for (var k = 0; k < this.layers_.length; ++k) {
+  for (let k = 0; k < this.layers_.length; ++k) {
     if ( this.layers_[k].visibility ) {
       this.layers_[k].render(this);
     } else {
@@ -710,7 +710,7 @@ MapView.prototype.requireRender_ = function() {
   if ( !this.isValid_ ) {
     return true;
   }
-  for (var j = 0; j < this.layers_.length; ++j) {
+  for (let j = 0; j < this.layers_.length; ++j) {
     if ( !this.layers_[j].isValid() ) {
       return true;
     }
@@ -725,13 +725,13 @@ MapView.prototype.requireRender_ = function() {
  * @param {string} layerId
  * @param {number} coordType
  */
-var Layer = function(layerId, coordType) {
+function Layer(layerId, coordType) {
   this.layerId = layerId;
   this.coordType = coordType;
   this.visibility = true;
   //
   this.isValid_ = false;
-};
+}
 
 Layer.prototype.isValid = function() {
   return this.isValid_;
@@ -772,14 +772,14 @@ Layer.prototype.render = function(mapView) {
  * @param {number} coordType
  * @param {object} style (option)
  */
-var TileTextureLayer = function(layerId, coordType, style, tileOpts, cacheOpts) {
+function TileTextureLayer(layerId, coordType, style, tileOpts, cacheOpts) {
   Layer.call(this, layerId, coordType);
   //
   this.tileManager = new TileManager(tileOpts);
   this.prevTileInfos_ = null;
   this.prevTransform_ = null;
   //
-  var observer = function() {
+  const observer = function() {
     this.markInvalid();
   }.bind(this);
   this.imageCache = new ImageCache(observer, cacheOpts);
@@ -790,7 +790,7 @@ var TileTextureLayer = function(layerId, coordType, style, tileOpts, cacheOpts) 
       this.opacity = style.opacity;
     }
   }
-};
+}
 Object.setPrototypeOf(TileTextureLayer.prototype, Layer.prototype);
 
 //  override
@@ -802,8 +802,8 @@ TileTextureLayer.prototype.invalidate = function() {
 //  override
 TileTextureLayer.prototype.loadData = function(mapView) {
   if ( this.tileManager.tileUrlDef == null )   return -1;
-  var tileInfos = this.getTileInfos_(mapView);
-  var count = this.requestImages_(mapView.imageProj.getGLContext(), tileInfos);
+  const tileInfos = this.getTileInfos_(mapView);
+  const count = this.requestImages_(mapView.imageProj.getGLContext(), tileInfos);
   this.markInvalid();
   return count;
 };
@@ -825,13 +825,13 @@ TileTextureLayer.prototype.resetImages = function() {
 
 TileTextureLayer.prototype.render = function(mapView) {
   if ( this.tileManager.tileUrlDef == null )   return;
-  var tileInfos = this.getTileInfos_(mapView);
+  const tileInfos = this.getTileInfos_(mapView);
   this.requestImages_(mapView.imageProj.getGLContext(), tileInfos);
 
-  var textures = [];
-  for (var i = 0; i < tileInfos.length; ++i ) {
-    var info = tileInfos[i];
-    var tex = this.imageCache.getTexture(info.url);
+  const textures = [];
+  for (let i = 0; i < tileInfos.length; ++i ) {
+    const info = tileInfos[i];
+    const tex = this.imageCache.getTexture(info.url);
     if ( tex ) {
       tex.push(info.clipRect);
       textures.push(tex);
@@ -841,10 +841,10 @@ TileTextureLayer.prototype.render = function(mapView) {
     mapView.imageProj.setCoordTypeData();
     mapView.imageProj.setOpacity(this.opacity);
     mapView.imageProj.prepareRenderSurface();
-    for (var k = 0; k < textures.length; k++ ) {
-      var texId = textures[k][0];
-      var rect = textures[k][1];
-      var clip = textures[k][2];
+    for (let k = 0; k < textures.length; k++ ) {
+      const texId = textures[k][0];
+      const rect = textures[k][1];
+      const clip = textures[k][2];
       mapView.imageProj.renderSurfaceTexture(texId, rect, clip);
     }
   }
@@ -860,8 +860,8 @@ TileTextureLayer.prototype.clearTileInfoCache_ = function() {
 };
 
 TileTextureLayer.prototype.requestImages_ = function(gl, tileInfos) {
-  var count = 0;
-  for (var i = 0; i < tileInfos.length; ++i ) {
+  let count = 0;
+  for (let i = 0; i < tileInfos.length; ++i ) {
     if ( this.imageCache.loadImageIfAbsent(gl, tileInfos[i].url, tileInfos[i].rect) ) {
       ++count;
     }
@@ -878,10 +878,10 @@ TileTextureLayer.prototype.getTileInfos_ = function(mapView) {
     this.prevTileInfos_ = null;
     this.prevTransform_ = null;
   }
-  var dataRect = mapView.getGeographicRectBounds();
-  var viewWindowScale = mapView.viewWindowManager_.getViewWindowScale();
-  var level = (this.tileManager.dataLevelDef != null) ? this.tileManager.dataLevelDef(viewWindowScale, dataRect) : 0;
-  var tileInfos = this.tileManager.getTileInfos(dataRect, level);
+  const dataRect = mapView.getGeographicRectBounds();
+  const viewWindowScale = mapView.viewWindowManager_.getViewWindowScale();
+  const level = (this.tileManager.dataLevelDef != null) ? this.tileManager.dataLevelDef(viewWindowScale, dataRect) : 0;
+  const tileInfos = this.tileManager.getTileInfos(dataRect, level);
   //if (tileInfos.length == 0)  throw tileInfos;     //   TODO DEBUG!!
   this.prevTransform_ = mapView.viewWindowManager_.transform_.clone();
   this.prevTileInfos_ = tileInfos;
@@ -897,7 +897,7 @@ TileTextureLayer.prototype.getTileInfos_ = function(mapView) {
  * @param {textureId} pointTextureId
  * @param {object} style (option)
  */
-var PointTextureLayer = function(layerId, coordType, pointTextureId, style) {
+function PointTextureLayer(layerId, coordType, pointTextureId, style) {
   Layer.call(this, layerId, coordType);
   this.pointTextureId = pointTextureId;
   //
@@ -910,7 +910,7 @@ var PointTextureLayer = function(layerId, coordType, pointTextureId, style) {
   }
   //
   this.data_ = [];
-};
+}
 Object.setPrototypeOf(PointTextureLayer.prototype, Layer.prototype);
 
 PointTextureLayer.prototype.addPoint = function(x, y) {
@@ -948,7 +948,7 @@ PointTextureLayer.prototype.render = function(mapView) {
  * @param {number} coordType
  * @param {object} style (option)
  */
-var PolylineLayer = function(layerId, coordType, style) {
+function PolylineLayer(layerId, coordType, style) {
   Layer.call(this, layerId, coordType);
   //
   this.color = {r: 1.0, g: 1.0, b: 1.0, a: 1.0};
@@ -960,7 +960,7 @@ var PolylineLayer = function(layerId, coordType, style) {
   }
   //
   this.data_ = [];
-};
+}
 Object.setPrototypeOf(PolylineLayer.prototype, Layer.prototype);
 
 PolylineLayer.prototype.addPolyline = function(polyline) {
@@ -978,7 +978,7 @@ PolylineLayer.prototype.render = function(mapView) {
     mapView.imageProj.prepareRenderPolyline();
     mapView.imageProj.setCoordType(this.coordType);
     mapView.imageProj.setColor(this.color);
-    for (var i = 0; i < this.data_.length; ++i) {
+    for (let i = 0; i < this.data_.length; ++i) {
       mapView.imageProj.renderPolyline(this.data_[i]);
     }
   }
@@ -995,7 +995,7 @@ PolylineLayer.prototype.render = function(mapView) {
  * @param {number} coordType
  * @param {object} style (option)
  */
-var GraticuleLayer = function(layerId, style) {
+function GraticuleLayer(layerId, style) {
   Layer.call(this, layerId, ProjShaderProgram.COORD_TYPE_DATA);
   //
   this.graticuleRenderer_ = null;
@@ -1011,7 +1011,7 @@ var GraticuleLayer = function(layerId, style) {
       this.intervalDegrees = style.intervalDegrees;
     }
   }
-};
+}
 Object.setPrototypeOf(GraticuleLayer.prototype, Layer.prototype);
 
 GraticuleLayer.prototype.invalidate = function() {
@@ -1028,8 +1028,8 @@ GraticuleLayer.prototype.render = function(mapView) {
     mapView.imageProj.setCoordTypeData();
     mapView.imageProj.setColor(this.color);
     //  TODO 効率化、リファクタリング -> 回転変換を加えてより非効率になった。要修正。
-    var window = mapView.getWindowBounds();
-    var dataRect = mapView.projection.inverseBoundingBox(window[0], window[1], window[2], window[3]);
+    const window = mapView.getWindowBounds();
+    const dataRect = mapView.projection.inverseBoundingBox(window[0], window[1], window[2], window[3]);
     this.graticuleRenderer_.renderLines(window, dataRect, this.intervalDegrees);
   }
   //

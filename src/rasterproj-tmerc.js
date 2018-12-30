@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.24  2018-12-02
+ * Raster Map Projection v0.0.25  2018-12-30
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -17,22 +17,22 @@ RasterMapProjection.createProjection = function(lam0, phi0, optDivN) {
 };
 
 RasterMapProjection.createShaderProgram = function(gl, proj) {
-  var imageProj = new TMERCProjShaderProgram(gl);
+  const imageProj = new TMERCProjShaderProgram(gl);
   imageProj.init(proj.getVertexShaderStr(), proj.getFragmentShaderStr());
   return imageProj;
 };
 
 // -----------------------------------------------------
 
-var TMERCProjShaderProgram = function(gl) {
+function TMERCProjShaderProgram(gl) {
   ProjShaderProgram.call(this, gl);
   this.locUnifBaseY_ = null;
-};
+}
 Object.setPrototypeOf(TMERCProjShaderProgram.prototype, ProjShaderProgram.prototype);
 
 
 TMERCProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
-  var ret = ProjShaderProgram.prototype.init.call(this, vertShaderStr, fragShaderStr);
+  const ret = ProjShaderProgram.prototype.init.call(this, vertShaderStr, fragShaderStr);
   if ( ret ) {
     this.locUnifBaseY_ = this.gl_.getUniformLocation(this.program_, 'uBaseY');   //  for TMERC
   }
@@ -40,34 +40,34 @@ TMERCProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
 };
 
 TMERCProjShaderProgram.prototype.renderLatitudeLine = function(lam, phiList, viewWindow) {
-  var idxY1 = 0;
-  var idxY2 = 0;
+  let idxY1 = 0;
+  let idxY2 = 0;
   if ( viewWindow ) {
     idxY1 = this.getPeriodIndexY_(viewWindow[1]);
     idxY2 = this.getPeriodIndexY_(viewWindow[3]);
   }
-  var midPhi = (phiList[0] + phiList[phiList.length-1]) / 2.0;
-  var baseY = 0.0;
+  const midPhi = (phiList[0] + phiList[phiList.length-1]) / 2.0;
+  let baseY = 0.0;
   if ( 0.0 < midPhi ) {
     baseY = Math.PI/2;
   } else if ( midPhi < 0.0 ) {
     baseY = -Math.PI/2;
   }
-  for (var idxY = idxY1; idxY <= idxY2; ++idxY ) {
+  for (let idxY = idxY1; idxY <= idxY2; ++idxY ) {
     this.gl_.uniform1f(this.locUnifBaseY_, 2 * Math.PI * idxY + baseY);
     ProjShaderProgram.prototype.renderLatitudeLine.call(this, lam, phiList);
   }
 };
 
 TMERCProjShaderProgram.prototype.renderLongitudeLine = function(phi, lamList, viewWindow) {
-  var idxY1 = 0;
-  var idxY2 = 0;
+  let idxY1 = 0;
+  let idxY2 = 0;
   if ( viewWindow ) {
     idxY1 = this.getPeriodIndexY_(viewWindow[1]);
     idxY2 = this.getPeriodIndexY_(viewWindow[3]);
   }
-  var baseY = 0.0;        //  MEMO: longitudeLineについて、正規化ありでこの値で適切であることを確認
-  for (var idxY = idxY1; idxY <= idxY2; ++idxY ) {
+  const baseY = 0.0;        //  MEMO: longitudeLineについて、正規化ありでこの値で適切であることを確認
+  for (let idxY = idxY1; idxY <= idxY2; ++idxY ) {
     this.gl_.uniform1f(this.locUnifBaseY_, 2 * Math.PI * idxY + baseY);
     ProjShaderProgram.prototype.renderLongitudeLine.call(this, phi, lamList);
   }
@@ -85,10 +85,10 @@ TMERCProjShaderProgram.prototype.getPeriodIndexY_ = function(y) {
  * @param {number} phi0  longitude of the center [rad].
  * @constructor
  */
-var ProjTMERC = function(lam0, phi0) {
+function ProjTMERC(lam0, phi0) {
   this.lam0 = lam0;
   this.phi0 = phi0;
-};
+}
 
 /**
  * 値域を表す矩形
@@ -124,9 +124,9 @@ ProjTMERC.prototype.checkXYDomain = function(x, y, rate) {
 
 //
 ProjTMERC.prototype.forward = function(lambda, phi) {
-  var b = Math.cos(phi) * Math.sin(lambda - this.lam0);
-  var x = Math.log((1 + b) / (1 - b)) / 2.0;   //  = arctanh(B)
-  var y = Math.atan2(Math.tan(phi), Math.cos(lambda - this.lam0)) - this.phi0;
+  const b = Math.cos(phi) * Math.sin(lambda - this.lam0);
+  const x = Math.log((1 + b) / (1 - b)) / 2.0;   //  = arctanh(B)
+  let y = Math.atan2(Math.tan(phi), Math.cos(lambda - this.lam0)) - this.phi0;
   if ( y < -Math.PI || Math.PI <= y ) {
     y -= 2 * Math.PI * Math.floor((y + Math.PI) / (2*Math.PI));
   }
@@ -136,8 +136,8 @@ ProjTMERC.prototype.forward = function(lambda, phi) {
 
 //
 ProjTMERC.prototype.inverse = function(x, y) {
-  var phi = this.inverse_phi_(x, y);
-  var lam = this.inverse_lambda_(x, y);
+  const phi = this.inverse_phi_(x, y);
+  let lam = this.inverse_lambda_(x, y);
   if ( lam < -Math.PI || Math.PI <= lam ) {
     lam -= 2 * Math.PI * Math.floor((lam + Math.PI) / (2*Math.PI));
   }
@@ -153,12 +153,12 @@ ProjTMERC.prototype.inverse_lambda_ = function(x, y) {
 };
 
 ProjTMERC.prototype.inverse_lambda_atY_ = function(x, y) {
-  var cy = Math.cos(y + this.phi0);
+  const cy = Math.cos(y + this.phi0);
   if ( cy === 0.0 ) {
     return (0 <= x) ? Math.PI/2 : -Math.PI/2;
   }
-  var sx = Math.sinh(x);
-  var v = Math.atan2(sx, cy) + this.lam0;
+  const sx = Math.sinh(x);
+  const v = Math.atan2(sx, cy) + this.lam0;
   if ( cy < 0 && sx < 0 ) {
     return v + 2 * Math.PI;
   } else {
@@ -171,9 +171,9 @@ ProjTMERC.prototype.containsNorthPole_ = function(x_min, y_min, x_max, y_max) {
   if (x_max < 0 || 0 < x_min)  return false;
   //var n = Math.ceil((y_max - y_min) / (2 * Math.PI)) + 1;
 
-  var y0 = (2 * Math.floor((y_min + this.phi0) / (2 * Math.PI) - 0.5) + 0.5) * Math.PI - this.phi0;
-  for (var i = 0; i < 256; ++i) {
-    var y = y0 + 2 * Math.PI * i;
+  const y0 = (2 * Math.floor((y_min + this.phi0) / (2 * Math.PI) - 0.5) + 0.5) * Math.PI - this.phi0;
+  for (let i = 0; i < 256; ++i) {
+    const y = y0 + 2 * Math.PI * i;
     if ( y_max < y )   break;
     if ( y_min <= y && y <= y_max )   return true;
   }
@@ -185,9 +185,9 @@ ProjTMERC.prototype.containsSouthPole_ = function(x_min, y_min, x_max, y_max) {
   if (x_max < 0 || 0 < x_min)  return false;
   //var n = Math.ceil((y_max - y_min) / (2 * Math.PI)) + 1;
 
-  var y0 = (2 * Math.floor((y_min + this.phi0) / (2 * Math.PI) + 0.5) - 0.5) * Math.PI - this.phi0;
-  for (var i = 0; i < 256; ++i) {
-    var y = y0 + 2 * Math.PI * i;
+  const y0 = (2 * Math.floor((y_min + this.phi0) / (2 * Math.PI) + 0.5) - 0.5) * Math.PI - this.phi0;
+  for (let i = 0; i < 256; ++i) {
+    const y = y0 + 2 * Math.PI * i;
     if ( y_max < y )   break;
     if ( y_min <= y && y <= y_max )   return true;
   }
@@ -196,14 +196,14 @@ ProjTMERC.prototype.containsSouthPole_ = function(x_min, y_min, x_max, y_max) {
 
 //  TODO 要テスト？
 ProjTMERC.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
-  var x_min = (x1 <= x2) ? x1 : x2;
-  var x_max = (x1 <= x2) ? x2 : x1;
-  var y_min = (y1 <= y2) ? y1 : y2;
-  var y_max = (y1 <= y2) ? y2 : y1;
+  const x_min = (x1 <= x2) ? x1 : x2;
+  const x_max = (x1 <= x2) ? x2 : x1;
+  const y_min = (y1 <= y2) ? y1 : y2;
+  const y_max = (y1 <= y2) ? y2 : y1;
 
   if ( x_min <= 0 && 0 <= x_max ) {
-    var containsNorthPole = this.containsNorthPole_(x_min, y_min, x_max, y_max);
-    var containsSouthPole = this.containsSouthPole_(x_min, y_min, x_max, y_max);
+    const containsNorthPole = this.containsNorthPole_(x_min, y_min, x_max, y_max);
+    const containsSouthPole = this.containsSouthPole_(x_min, y_min, x_max, y_max);
 
     //  N極,S極の双方を含む場合
     if ( containsNorthPole && containsSouthPole ) {
@@ -211,7 +211,7 @@ ProjTMERC.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
     }
     //  N極,S極のどちらか一方を含む場合
     if ( containsNorthPole || containsSouthPole ) {
-      var range = this.inversePhiRange_([x_min, x_max], [y_min, y_max]);
+      const range = this.inversePhiRange_([x_min, x_max], [y_min, y_max]);
       if ( containsNorthPole ) {
         return {lambda: [-Math.PI, +Math.PI], phi: [range[0], Math.PI/2]};
       } else {
@@ -220,8 +220,8 @@ ProjTMERC.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
     }
   }
   //  通常ケース
-  var phiRange2 = this.inversePhiRange_([x_min, x_max], [y_min, y_max]);
-  var lamRange2 = this.inverseLambdaRange_([x_min, x_max], [y_min, y_max]);
+  const phiRange2 = this.inversePhiRange_([x_min, x_max], [y_min, y_max]);
+  let lamRange2 = this.inverseLambdaRange_([x_min, x_max], [y_min, y_max]);
   lamRange2 = this.normalizeLambdaRange_(lamRange2);
   if (2 * Math.PI < lamRange2[1] - lamRange2[0]) {
     lamRange2 = [-Math.PI, Math.PI];
@@ -231,7 +231,7 @@ ProjTMERC.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
 
 //
 ProjTMERC.prototype.mergeRange_ = function(origRange, newRange) {
-  var range = null;
+  let range = null;
   if ( origRange == null ) {
     range = newRange;
   } else if ( newRange != null ) {
@@ -248,44 +248,44 @@ ProjTMERC.prototype.mergeRange_ = function(origRange, newRange) {
 
 //
 ProjTMERC.prototype.normalizeLambdaRange_ = function(range) {
-  var lam = range[0];
+  const lam = range[0];
   if ( -Math.PI <= lam && lam < Math.PI ) {
     return range;
   }
-  var d = 2 * Math.PI * Math.floor( (lam + Math.PI) / (2 * Math.PI) );
+  const d = 2 * Math.PI * Math.floor( (lam + Math.PI) / (2 * Math.PI) );
   return [range[0] - d, range[1] - d];
 };
 
 
 //
 ProjTMERC.prototype.inverseLambdaRange_ = function(xRange, yRange) {
-  var x_min = (xRange[0] <= xRange[1]) ? xRange[0] : xRange[1];
-  var x_max = (xRange[0] <= xRange[1]) ? xRange[1] : xRange[0];
-  var y_min = (yRange[0] <= yRange[1]) ? yRange[0] : yRange[1];
-  var y_max = (yRange[0] <= yRange[1]) ? yRange[1] : yRange[0];
+  const x_min = (xRange[0] <= xRange[1]) ? xRange[0] : xRange[1];
+  const x_max = (xRange[0] <= xRange[1]) ? xRange[1] : xRange[0];
+  const y_min = (yRange[0] <= yRange[1]) ? yRange[0] : yRange[1];
+  const y_max = (yRange[0] <= yRange[1]) ? yRange[1] : yRange[0];
 
-  var rangeAtY = this.inverseLambdaRangeAtY_([x_min, x_max], [y_min, y_max]);
-  var rangeAtX = this.inverseLambdaRangeAtX_([y_min, y_max], [x_min, x_max]);
-  var range = this.mergeRange_(rangeAtX, rangeAtY);
+  const rangeAtY = this.inverseLambdaRangeAtY_([x_min, x_max], [y_min, y_max]);
+  const rangeAtX = this.inverseLambdaRangeAtX_([y_min, y_max], [x_min, x_max]);
+  const range = this.mergeRange_(rangeAtX, rangeAtY);
 
   return range;
 };
 
 //
 ProjTMERC.prototype.inverseLambdaRangeAtY_ = function(xRange, yValues) {
-  var xmin = (xRange[0] <= xRange[1]) ? xRange[0] : xRange[1];
-  var xmax = (xRange[0] <= xRange[1]) ? xRange[1] : xRange[0];
+  const xmin = (xRange[0] <= xRange[1]) ? xRange[0] : xRange[1];
+  const xmax = (xRange[0] <= xRange[1]) ? xRange[1] : xRange[0];
 
-  var across = (xmin <= 0) && (0 <= xmax);
+  const across = (xmin <= 0) && (0 <= xmax);
 
-  var numY = yValues.length;
-  var lam_min = null;
-  var lam_max = null;
+  const numY = yValues.length;
+  let lam_min = null;
+  let lam_max = null;
 
-  for (var k = 0; k < numY; k++) {
-    var y = yValues[k];
+  for (let k = 0; k < numY; k++) {
+    const y = yValues[k];
 
-    var v = across ? this.inverse_lambda_atY_(xmin, y) : this.inverse_lambda_(xmin, y);
+    let v = across ? this.inverse_lambda_atY_(xmin, y) : this.inverse_lambda_(xmin, y);
     if (lam_min === null || v < lam_min)  lam_min = v;
     if (lam_max === null || lam_max < v)  lam_max = v;
 
@@ -295,7 +295,7 @@ ProjTMERC.prototype.inverseLambdaRangeAtY_ = function(xRange, yValues) {
   }
 
   if ( lam_min < -Math.PI || Math.PI <= lam_min ) {
-    var dlam = 2 * Math.PI * Math.floor((lam_min + Math.PI) / (2*Math.PI));
+    const dlam = 2 * Math.PI * Math.floor((lam_min + Math.PI) / (2*Math.PI));
     lam_min -= dlam;
     lam_max -= dlam;
   }
@@ -304,19 +304,19 @@ ProjTMERC.prototype.inverseLambdaRangeAtY_ = function(xRange, yValues) {
 
 //
 ProjTMERC.prototype.inverseLambdaRangeAtX_ = function(yRange, xValues) {
-  var ymin = (yRange[0] <= yRange[1]) ? yRange[0] : yRange[1];
-  var ymax = (yRange[0] <= yRange[1]) ? yRange[1] : yRange[0];
+  const ymin = (yRange[0] <= yRange[1]) ? yRange[0] : yRange[1];
+  const ymax = (yRange[0] <= yRange[1]) ? yRange[1] : yRange[0];
 
-  var y0 = Math.PI * Math.floor((ymin + this.phi0)/ Math.PI) - this.phi0;
+  const y0 = Math.PI * Math.floor((ymin + this.phi0)/ Math.PI) - this.phi0;
 
-  var numX = xValues.length;
-  var lam_min = null;
-  var lam_max = null;
+  const numX = xValues.length;
+  let lam_min = null;
+  let lam_max = null;
 
-  for (var k = 0; k < numX; k++) {
-    var x = xValues[k];
+  for (let k = 0; k < numX; k++) {
+    const x = xValues[k];
 
-    var v = this.inverse_lambda_(x, ymin);
+    let v = this.inverse_lambda_(x, ymin);
     if (lam_min === null || v < lam_min)  lam_min = v;
     if (lam_max === null || lam_max < v)  lam_max = v;
 
@@ -325,8 +325,8 @@ ProjTMERC.prototype.inverseLambdaRangeAtX_ = function(yRange, xValues) {
     if (lam_max < v)  lam_max = v;
 
     //  極値のチェック
-    for (var i = 1; i <= 2; i++) {
-      var y = y0 + Math.PI * i;
+    for (let i = 1; i <= 2; i++) {
+      const y = y0 + Math.PI * i;
       //if (y < ymin)  throw new Error('assert!!');  //  TODO assert!!
       if (ymax < y)   break;
       v = this.inverse_lambda_(x, y);
@@ -336,7 +336,7 @@ ProjTMERC.prototype.inverseLambdaRangeAtX_ = function(yRange, xValues) {
   }
 
   if ( lam_min < -Math.PI || Math.PI <= lam_min ) {
-    var dlam = 2 * Math.PI * Math.floor((lam_min + Math.PI) / (2*Math.PI));
+    const dlam = 2 * Math.PI * Math.floor((lam_min + Math.PI) / (2*Math.PI));
     lam_min -= dlam;
     lam_max -= dlam;
   }
@@ -345,14 +345,14 @@ ProjTMERC.prototype.inverseLambdaRangeAtX_ = function(yRange, xValues) {
 
 //
 ProjTMERC.prototype.inversePhiRange_ = function(xRange, yRange) {
-  var x_min = (xRange[0] <= xRange[1]) ? xRange[0] : xRange[1];
-  var x_max = (xRange[0] <= xRange[1]) ? xRange[1] : xRange[0];
-  var y_min = (yRange[0] <= yRange[1]) ? yRange[0] : yRange[1];
-  var y_max = (yRange[0] <= yRange[1]) ? yRange[1] : yRange[0];
+  const x_min = (xRange[0] <= xRange[1]) ? xRange[0] : xRange[1];
+  const x_max = (xRange[0] <= xRange[1]) ? xRange[1] : xRange[0];
+  const y_min = (yRange[0] <= yRange[1]) ? yRange[0] : yRange[1];
+  const y_max = (yRange[0] <= yRange[1]) ? yRange[1] : yRange[0];
 
-  var rangeAtY = this.inversePhiRangeAtY_([x_min, x_max], [y_min, y_max]);
-  var rangeAtX = this.inversePhiRangeAtX_([y_min, y_max], [x_min, x_max]);
-  var range = this.mergeRange_(rangeAtX, rangeAtY);
+  const rangeAtY = this.inversePhiRangeAtY_([x_min, x_max], [y_min, y_max]);
+  const rangeAtX = this.inversePhiRangeAtX_([y_min, y_max], [x_min, x_max]);
+  const range = this.mergeRange_(rangeAtX, rangeAtY);
 
   return range;
 };
@@ -360,17 +360,17 @@ ProjTMERC.prototype.inversePhiRange_ = function(xRange, yRange) {
 
 //
 ProjTMERC.prototype.inversePhiRangeAtY_ = function(xRange, yValues) {
-  var xmin = (xRange[0] <= xRange[1]) ? xRange[0] : xRange[1];
-  var xmax = (xRange[0] <= xRange[1]) ? xRange[1] : xRange[0];
+  const xmin = (xRange[0] <= xRange[1]) ? xRange[0] : xRange[1];
+  const xmax = (xRange[0] <= xRange[1]) ? xRange[1] : xRange[0];
 
-  var numY = yValues.length;
-  var phi_min = null;
-  var phi_max = null;
+  const numY = yValues.length;
+  let phi_min = null;
+  let phi_max = null;
 
-  for (var k = 0; k < numY; k++) {
-    var y = yValues[k];
+  for (let k = 0; k < numY; k++) {
+    const y = yValues[k];
 
-    var v = this.inverse_phi_(xmin, y);
+    let v = this.inverse_phi_(xmin, y);
     if (phi_min === null || v < phi_min)  phi_min = v;
     if (phi_max === null || phi_max < v)  phi_max = v;
 
@@ -380,8 +380,8 @@ ProjTMERC.prototype.inversePhiRangeAtY_ = function(xRange, yValues) {
 
     if (xmin < 0 && 0 < xmax) {
       v = this.inverse_phi_(0.0, y);
-    if (v < phi_min)  phi_min = v;
-    if (phi_max < v)  phi_max = v;
+      if (v < phi_min)  phi_min = v;
+      if (phi_max < v)  phi_max = v;
     }
   }
 
@@ -390,19 +390,19 @@ ProjTMERC.prototype.inversePhiRangeAtY_ = function(xRange, yValues) {
 
 //
 ProjTMERC.prototype.inversePhiRangeAtX_ = function(yRange, xValues) {
-  var ymin = (yRange[0] <= yRange[1]) ? yRange[0] : yRange[1];
-  var ymax = (yRange[0] <= yRange[1]) ? yRange[1] : yRange[0];
+  const ymin = (yRange[0] <= yRange[1]) ? yRange[0] : yRange[1];
+  const ymax = (yRange[0] <= yRange[1]) ? yRange[1] : yRange[0];
 
-  var y0 = Math.PI * (Math.floor((ymin + this.phi0)/ Math.PI + 0.5) - 0.5) - this.phi0;
+  const y0 = Math.PI * (Math.floor((ymin + this.phi0)/ Math.PI + 0.5) - 0.5) - this.phi0;
 
-  var numX = xValues.length;
-  var phi_min = null;
-  var phi_max = null;
+  const numX = xValues.length;
+  let phi_min = null;
+  let phi_max = null;
 
-  for (var k = 0; k < numX; k++) {
-    var x = xValues[k];
+  for (let k = 0; k < numX; k++) {
+    const x = xValues[k];
 
-    var v = this.inverse_phi_(x, ymin);
+    let v = this.inverse_phi_(x, ymin);
     if (phi_min === null || v < phi_min)  phi_min = v;
     if (phi_max === null || phi_max < v)  phi_max = v;
 
@@ -411,8 +411,8 @@ ProjTMERC.prototype.inversePhiRangeAtX_ = function(yRange, xValues) {
     if (phi_max < v)  phi_max = v;
 
     //  極値のチェック
-    for (var i = 1; i <= 2; i++) {
-      var y = y0 + Math.PI * i;
+    for (let i = 1; i <= 2; i++) {
+      const y = y0 + Math.PI * i;
       //if (y < ymin)  throw new Error('assert!!');  //  TODO assert!!
       if (ymax < y)   break;
       v = this.inverse_phi_(x, y);

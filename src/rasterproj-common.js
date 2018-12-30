@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.24  2018-12-02
+ * Raster Map Projection v0.0.25  2018-12-30
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -21,7 +21,7 @@ if ( !Math.sinh ) {
 
 // -----------------------------------------------------
 
-var RasterMapProjection = function() {};
+function RasterMapProjection() {}
 
 RasterMapProjection.createProjection = function(lam0, phi0, optDivN) {
   console.log('override!!');
@@ -29,7 +29,7 @@ RasterMapProjection.createProjection = function(lam0, phi0, optDivN) {
 };
 
 RasterMapProjection.createShaderProgram = function(gl, proj) {
-  var imageProj = new ProjShaderProgram(gl);
+  const imageProj = new ProjShaderProgram(gl);
   imageProj.init(proj.getVertexShaderStr(), proj.getFragmentShaderStr());
   return imageProj;
 };
@@ -48,13 +48,13 @@ RasterMapProjection.createShaderProgram = function(gl, proj) {
 
 /* ------------------------------------------------------------ */
 
-var ImageUtils = function() {};
+function ImageUtils() {}
 
 /**
  * createTexture
  */
 ImageUtils.createTexture = function(gl, img) {
-  var tex = gl.createTexture();
+  const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -75,19 +75,19 @@ ImageUtils.createTexture = function(gl, img) {
 /**
  * MathUtils
  */
-var MathUtils = function() {};
+function MathUtils() {}
 
 /**
  * @param src : source rect x1:Float, y1:Float, x2:Float, y2:Float
  * @param dst : destination rect x1:Float, y1:Float, x2:Float, y2:Float
  */
 MathUtils.getTransform = function(src, dst) {
-  var dx = src.x2 - src.x1;
-  var dy = src.y2 - src.y1;
-  var sx = (dst.x2 - dst.x1) / dx;
-  var sy = (dst.y2 - dst.y1) / dy;
-  var tx = (dst.x1 * src.x2 - src.x1 * dst.x2) / dx;
-  var ty = (dst.y1 * src.y2 - src.y1 * dst.y2) / dy;
+  const dx = src.x2 - src.x1;
+  const dy = src.y2 - src.y1;
+  const sx = (dst.x2 - dst.x1) / dx;
+  const sy = (dst.y2 - dst.y1) / dy;
+  const tx = (dst.x1 * src.x2 - src.x1 * dst.x2) / dx;
+  const ty = (dst.y1 * src.y2 - src.y1 * dst.y2) / dy;
   return [sx, 0.0, 0.0,   0.0, sy, 0.0,  tx, ty, 1.0];
 };
 
@@ -96,7 +96,7 @@ MathUtils.getTransform = function(src, dst) {
 /**
  * 数学関数ユーティリティ
  */
-var ProjMath = function() {};
+function ProjMath() {}
 
 ProjMath.EPSILON = 1.0e-7;
 
@@ -121,10 +121,10 @@ ProjMath.atan2Range = function(yRange, xRange) {
   console.assert(yRange.min <= yRange.max);
   console.assert(xRange.min <= xRange.max);
 
-  var xmin = xRange.min;
-  var xmax = xRange.max;
-  var ymin = yRange.min;
-  var ymax = yRange.max;
+  const xmin = xRange.min;
+  const xmax = xRange.max;
+  const ymin = yRange.min;
+  const ymax = yRange.max;
 
   //  y方向正の領域内
   if (0 <= ymin) {
@@ -154,8 +154,8 @@ ProjMath.atan2Range = function(yRange, xRange) {
   }
   if (xmax < 0) {
     //  周期性の考慮
-    var t1 = Math.atan2(ymax, xmax);
-    var t2 = Math.atan2(ymin, xmax);
+    const t1 = Math.atan2(ymax, xmax);
+    const t2 = Math.atan2(ymin, xmax);
     if (Math.PI <= t1) {
       return {min: t1 - 2 * Math.PI, max: t2};
     } else {
@@ -169,9 +169,9 @@ ProjMath.atan2Range = function(yRange, xRange) {
 
 
 ProjMath.toLambdaPhi = function(vec3d) {
-  var r = Math.sqrt(vec3d[0] * vec3d[0] + vec3d[1] * vec3d[1]);
-  var lam = Math.atan2( vec3d[1], vec3d[0] );
-  var phi = Math.atan2( vec3d[2], r );
+  const r = Math.sqrt(vec3d[0] * vec3d[0] + vec3d[1] * vec3d[1]);
+  const lam = Math.atan2( vec3d[1], vec3d[0] );
+  const phi = Math.atan2( vec3d[2], r );
   return {lambda: lam, phi: phi};
 };
 
@@ -188,8 +188,8 @@ ProjMath.neighborPoint = function(pt1, pt2) {
   if ( ProjMath.EPSILON <= Math.abs(pt1.phi - pt2.phi) ) {
     return false;
   }
-  var lam1 = ProjMath.normalizeLambda(pt1.lambda);
-  var lam2 = ProjMath.normalizeLambda(pt2.lambda);
+  const lam1 = ProjMath.normalizeLambda(pt1.lambda);
+  const lam2 = ProjMath.normalizeLambda(pt2.lambda);
   return Math.abs(lam1 - lam2) < ProjMath.EPSILON;
 };
 
@@ -206,7 +206,7 @@ ProjMath.calcAngle = function(x1, y1, x2, y2) {
 /**
  * Rangeユーティリティ
  */
-var RangeUtils = function() {};
+function RangeUtils() {}
 
 RangeUtils.intersects_ = function(range1, range2) {
   //  range1 != null && range2 != null
@@ -221,8 +221,8 @@ RangeUtils.unionIfIntersects = function(range1, range2) {
   if ( !RangeUtils.intersects_(range1, range2) ) {
     return null;
   }
-  var min = (range1[0] < range2[0]) ? range1[0] : range2[0];
-  var max = (range1[1] < range2[1]) ? range2[1] : range1[1];
+  const min = (range1[0] < range2[0]) ? range1[0] : range2[0];
+  const max = (range1[1] < range2[1]) ? range2[1] : range1[1];
   return [min, max];
 };
 
@@ -231,7 +231,7 @@ RangeUtils.unionIfIntersects = function(range1, range2) {
 /**
  * lambda Rangeユーティリティ
  */
-var LambdaRangeUtils = function() {};
+function LambdaRangeUtils() {}
 
 LambdaRangeUtils.isPeriodic = function(range) {
   return 2*Math.PI - ProjMath.EPSILON <= range[1] - range[0];
@@ -242,13 +242,13 @@ LambdaRangeUtils.contains = function(outerRange, innerRange) {
   if ( LambdaRangeUtils.isPeriodic(outerRange) ) {
     return true;
   }
-  var outerLength = outerRange[1] - outerRange[0];
-  var innerLength = innerRange[1] - innerRange[0];
+  const outerLength = outerRange[1] - outerRange[0];
+  const innerLength = innerRange[1] - innerRange[0];
   if (outerLength < innerLength) {
     return false;
   }
-  var outer = LambdaRangeUtils.normalize(outerRange);
-  var inner = LambdaRangeUtils.normalize(innerRange);
+  const outer = LambdaRangeUtils.normalize(outerRange);
+  const inner = LambdaRangeUtils.normalize(innerRange);
   if (outer[0] <= inner[0] && inner[1] <= outer[1]) {
     return true;
   }
@@ -272,11 +272,11 @@ LambdaRangeUtils.normalize = function(range) {
   if ( LambdaRangeUtils.isPeriodic(range) ) {
     return [-Math.PI, Math.PI];
   }
-  var lam1 = range[0];
+  const lam1 = range[0];
   if ( -Math.PI <= lam1 && lam1 < Math.PI ) {
     return range;
   }
-  var d = 2 * Math.PI * Math.floor( (lam1 + Math.PI) / (2 * Math.PI) );
+  const d = 2 * Math.PI * Math.floor( (lam1 + Math.PI) / (2 * Math.PI) );
   return [range[0] - d, range[1] - d];
 };
 
@@ -286,10 +286,10 @@ LambdaRangeUtils.normalize = function(range) {
 /**
  * データ座標系ユーティリティ
  */
-var GeographicRectUtils = function() {};
+function GeographicRectUtils() {}
 
 GeographicRectUtils.mergeRange_ = function(range1, range2) {
-  var range = null;
+  let range = null;
   if ( range1 == null ) {
     range = range2;
   } else if ( range2 != null ) {
@@ -307,46 +307,46 @@ GeographicRectUtils.mergeRange_ = function(range1, range2) {
 //  TODO 周期性を考慮したunionの定義を再検討。今のところ重なりが無いケースでの使用が無いため問題は無いが。
 //  TODO 試験！！
 GeographicRectUtils.union = function(rect1, rect2) {
-  var phiRange = GeographicRectUtils.mergeRange_(rect1.phi, rect2.phi);
+  const phiRange = GeographicRectUtils.mergeRange_(rect1.phi, rect2.phi);
   //
-  var lambda1 = LambdaRangeUtils.normalize(rect1.lambda);
-  var lambda2 = LambdaRangeUtils.normalize(rect2.lambda);
-  var lamRange = GeographicRectUtils.mergeRange_(lambda1, lambda2);
+  const lambda1 = LambdaRangeUtils.normalize(rect1.lambda);
+  const lambda2 = LambdaRangeUtils.normalize(rect2.lambda);
+  const lamRange = GeographicRectUtils.mergeRange_(lambda1, lambda2);
   return { lambda: LambdaRangeUtils.normalize(lamRange), phi: phiRange };
 };
 
 //  TODO lambda方向のintersectionの結果、２個に分離される場合を考慮できていない。
 //  TODO 試験！！
 GeographicRectUtils.intersection = function(rect1, rect2) {
-  var phi1 = (rect1.phi[0] < rect2.phi[0]) ? rect2.phi[0] : rect1.phi[0];  //  大きい方
-  var phi2 = (rect1.phi[1] < rect2.phi[1]) ? rect1.phi[1] : rect2.phi[1];  //  小さい方
+  const phi1 = (rect1.phi[0] < rect2.phi[0]) ? rect2.phi[0] : rect1.phi[0];  //  大きい方
+  const phi2 = (rect1.phi[1] < rect2.phi[1]) ? rect1.phi[1] : rect2.phi[1];  //  小さい方
   if (phi2 <= phi1) {
     return null;   //  phiの範囲に重なり無し
   }
 
   //
-  var lamRange = null;
-  var round1 = LambdaRangeUtils.isPeriodic(rect1.lambda);
-  var round2 = LambdaRangeUtils.isPeriodic(rect2.lambda);
+  let lamRange = null;
+  const round1 = LambdaRangeUtils.isPeriodic(rect1.lambda);
+  const round2 = LambdaRangeUtils.isPeriodic(rect2.lambda);
   if (round1 && round2) {
     lamRange = [-Math.PI, Math.PI];
   } else {
-    var lambda1 = LambdaRangeUtils.normalize(rect1.lambda);
-    var lambda2 = LambdaRangeUtils.normalize(rect2.lambda);
+    const lambda1 = LambdaRangeUtils.normalize(rect1.lambda);
+    const lambda2 = LambdaRangeUtils.normalize(rect2.lambda);
     if (round1) {
       lamRange = lambda2;
     } else if (round2) {
       lamRange = lambda1;
     } else {
-      var lam1 = (lambda1[0] < lambda2[0]) ? lambda2[0] : lambda1[0];
-      var lam2 = (lambda1[1] < lambda2[1]) ? lambda1[1] : lambda2[1];
+      const lam1 = (lambda1[0] < lambda2[0]) ? lambda2[0] : lambda1[0];
+      const lam2 = (lambda1[1] < lambda2[1]) ? lambda1[1] : lambda2[1];
       if (lam1 < lam2) {
         lamRange = [lam1, lam2];
       } else {
         //  周期性を考慮して重なる場合の対応。但し分割して２領域が重なる場合に対応していない
-        var max = (lambda1[1] < lambda2[1]) ? lambda2[1] : lambda1[1];
+        const max = (lambda1[1] < lambda2[1]) ? lambda2[1] : lambda1[1];
         if (Math.PI < max) {
-          var min = (lambda1[0] < lambda2[0]) ? lambda1[0] : lambda2[0];
+          const min = (lambda1[0] < lambda2[0]) ? lambda1[0] : lambda2[0];
           if (min < max - 2*Math.PI) {
             lamRange = [min, max - 2*Math.PI];
           }
@@ -367,7 +367,7 @@ GeographicRectUtils.intersection = function(rect1, rect2) {
  * ProjShaderProgram
  * @constructor
  */
-var ProjShaderProgram = function(gl) {
+function ProjShaderProgram(gl) {
   this.gl_ = gl;
   this.vbo_ = null;
   this.program_ = null;
@@ -389,7 +389,7 @@ var ProjShaderProgram = function(gl) {
   this.locUnifOpacity_ = null;
   this.locUnifTextureType_ = null;
   this.locUnifTexture_ = null;
-};
+}
 
 /**
  *
@@ -453,18 +453,18 @@ ProjShaderProgram.prototype.setColor = function(color) {
 
 //  MEMO setViewWindowに代わる変換。
 ProjShaderProgram.prototype.setTransform = function(cx, cy, dx, dy, theta) {
-  var hx = dx / 2.0;
-  var hy = dy / 2.0;
+  const hx = dx / 2.0;
+  const hy = dy / 2.0;
 
-  var cost = Math.cos(theta);
-  var sint = Math.sin(theta);
+  const cost = Math.cos(theta);
+  const sint = Math.sin(theta);
 
-  var mat = [
+  const mat = [
     cost/hx, sint/hy, 0.0,
     -sint/hy, cost/hy, 0.0,
     -cost*cx/hx + sint*cy/hy, -sint*cx/hx - cost*cy/hy, 1.0
   ];   //  transpose
-  var inv = [
+  const inv = [
     cost*hx, -sint*hy, 0.0,
     sint*hx, cost*hy, 0.0,
     cx, cy, 1.0
@@ -584,7 +584,7 @@ ProjShaderProgram.prototype.prepareRenderSurface = function() {
   this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
   this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 4);
 
-  var data = new Float32Array([
+  const data = new Float32Array([
     // Screen(x,y)
     -1.0, +1.0,
     -1.0, -1.0,
@@ -678,14 +678,14 @@ ProjShaderProgram.prototype.renderPolyline = function(points) {
     this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(points));
     this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, points.length / 2);
   } else {
-    var endIdx = 0;
-    var nextEndIdx = 0;
+    let endIdx = 0;
+    let nextEndIdx = 0;
     do {
       nextEndIdx = endIdx + ProjShaderProgram.POINTS_BUFFER_SIZE * 2;
       if ( points.length < nextEndIdx ) {
         nextEndIdx = points.length;
       }
-      var buff = points.slice(endIdx, nextEndIdx);
+      const buff = points.slice(endIdx, nextEndIdx);
       this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(buff));
       this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, buff.length / 2);
       endIdx = nextEndIdx - 2;    //  分割する点は前後の配列双方に含める
@@ -701,14 +701,14 @@ ProjShaderProgram.prototype.renderPoints = function(points) {
     this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(points));
     this.gl_.drawArrays(this.gl_.POINTS, 0, points.length / 2);
   } else {
-    var endIdx = 0;
-    var nextEndIdx = 0;
+    let endIdx = 0;
+    let nextEndIdx = 0;
     do {
       nextEndIdx = endIdx + ProjShaderProgram.POINTS_BUFFER_SIZE * 2;
       if ( points.length < nextEndIdx ) {
         nextEndIdx = points.length;
       }
-      var buff = points.slice(endIdx, nextEndIdx);
+      const buff = points.slice(endIdx, nextEndIdx);
       this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(buff));
       this.gl_.drawArrays(this.gl_.POINTS, 0, buff.length / 2);
       endIdx = nextEndIdx;
@@ -743,18 +743,18 @@ ProjShaderProgram.prototype.renderLongitudeLine = function(phi, lamList, viewWin
  * @param fragShaderStr
  */
 ProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
-  var vertexShader = this.loadShader_(this.gl_.VERTEX_SHADER, vertShaderStr);
-  var fragmentShader = this.loadShader_(this.gl_.FRAGMENT_SHADER, fragShaderStr);
+  const vertexShader = this.loadShader_(this.gl_.VERTEX_SHADER, vertShaderStr);
+  const fragmentShader = this.loadShader_(this.gl_.FRAGMENT_SHADER, fragShaderStr);
 
-  var prog = this.gl_.createProgram();
+  const prog = this.gl_.createProgram();
   this.gl_.attachShader(prog, vertexShader);
   this.gl_.attachShader(prog, fragmentShader);
 
   this.gl_.linkProgram(prog);
 
-  var linked = this.gl_.getProgramParameter(prog, this.gl_.LINK_STATUS);
+  const linked = this.gl_.getProgramParameter(prog, this.gl_.LINK_STATUS);
   if (!linked && !this.gl_.isContextLost()) {
-    var info = this.gl_.getProgramInfoLog(prog);
+    const info = this.gl_.getProgramInfoLog(prog);
     alert('Error linking program:\n' + info);
     this.gl_.deleteProgram(prog);
     return false;
@@ -796,11 +796,11 @@ ProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
  * @param shaderSrc
  */
 ProjShaderProgram.prototype.loadShader_ = function(type, shaderSrc) {
-  var shader = this.gl_.createShader(type);
+  const shader = this.gl_.createShader(type);
   this.gl_.shaderSource(shader, shaderSrc);
   this.gl_.compileShader(shader);
   if (!this.gl_.getShaderParameter(shader, this.gl_.COMPILE_STATUS) && !this.gl_.isContextLost()) {
-    var info = this.gl_.getShaderInfoLog(shader);
+    const info = this.gl_.getShaderInfoLog(shader);
     alert('Error compiling shader:\n' + info);
     this.gl_.deleteShader(shader);
     return null;
@@ -814,7 +814,7 @@ ProjShaderProgram.prototype.loadShader_ = function(type, shaderSrc) {
  */
 ProjShaderProgram.prototype.createBuffer_ = function(dim, maxNum) {
   //  データ型はFloat32を前提
-  var buff = this.gl_.createBuffer();
+  const buff = this.gl_.createBuffer();
   this.gl_.bindBuffer(this.gl_.ARRAY_BUFFER, buff);
   this.gl_.bufferData(this.gl_.ARRAY_BUFFER, maxNum * dim * 4, this.gl_.DYNAMIC_DRAW);
   return {buffer: buff, dimension: dim, maxNum: maxNum};
