@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.25  2018-12-30
+ * Raster Map Projection v0.0.26  2018-12-30
  * Copyright (C) 2016-2018 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -311,19 +311,15 @@ function GraticuleRenderer(shaderProg, proj) {
   //
   this.proj_ = proj;   //   import from raster-map-projection
   //
-  this.unitLength_ = Math.PI / 8;
+  //this.unitLength_ = Math.PI / 8;
   this.separateThreshold_ = Math.PI / 8;
   this.interpolator_ = new GraticuleInterpolator(this.proj_, 8, Math.PI/8, 8);
 }
 
-/**
- * @param viewWindow
- * @param dataRect
- * @param spanDeg
- */
-GraticuleRenderer.prototype.renderLines = function(viewWindow, dataRect, spanDeg) {
-  this.renderLatitudeLines(viewWindow, dataRect, spanDeg);
-  this.renderLongitudeLines(viewWindow, dataRect, spanDeg);
+GraticuleRenderer.prototype.calcUnitLength_ = function(viewWindow) {
+  const dx = viewWindow[2] - viewWindow[0];
+  const dy = viewWindow[3] - viewWindow[1];
+  return Math.sqrt(dx * dx + dy * dy) / 4;
 };
 
 /**
@@ -331,7 +327,18 @@ GraticuleRenderer.prototype.renderLines = function(viewWindow, dataRect, spanDeg
  * @param dataRect
  * @param spanDeg
  */
-GraticuleRenderer.prototype.renderLatitudeLines = function(viewWindow, dataRect, spanDeg) {
+GraticuleRenderer.prototype.renderLines = function(viewWindow, dataRect, spanDeg) {
+  const unitLength = this.calcUnitLength_(viewWindow);
+  this.renderLatitudeLines(viewWindow, dataRect, spanDeg, unitLength);
+  this.renderLongitudeLines(viewWindow, dataRect, spanDeg, unitLength);
+};
+
+/**
+ * @param viewWindow
+ * @param dataRect
+ * @param spanDeg
+ */
+GraticuleRenderer.prototype.renderLatitudeLines = function(viewWindow, dataRect, spanDeg, unitLength) {
   const phiMin = Math.max(-80.0 * Math.PI/180.0, dataRect.phi[0]);
   const phiMax = Math.min(80.0 * Math.PI/180.0, dataRect.phi[1]);
   const phiRanges = [];
@@ -364,11 +371,11 @@ GraticuleRenderer.prototype.renderLatitudeLines = function(viewWindow, dataRect,
     const lam = lon * Math.PI / 180.0;
     for (let k = 0; k < phiRanges.length; k++ ) {
       const phiRange = phiRanges[k];
-      const line = this.interpolator_.createLatitudeLine(lam, phiRange[0], phiRange[1]);
+      const line = this.interpolator_.createLatitudeLine(lam, phiRange[0], phiRange[1]);   //  GraticuleInterpolator
       if ( line == null ) {
         continue;
       }
-      const list = line.generateLists(this.unitLength_, this.separateThreshold_, count);
+      const list = line.generateLists(unitLength, this.separateThreshold_, count);
       for (let i = 0; i < list.length; i++ ) {
         this.shaderProg_.renderLatitudeLine(lam, list[i], viewWindow);
       }
@@ -381,7 +388,7 @@ GraticuleRenderer.prototype.renderLatitudeLines = function(viewWindow, dataRect,
  * @param dataRect
  * @param spanDeg
  */
-GraticuleRenderer.prototype.renderLongitudeLines = function(viewWindow, dataRect, spanDeg) {
+GraticuleRenderer.prototype.renderLongitudeLines = function(viewWindow, dataRect, spanDeg, unitLength) {
   const lamAntipode = ProjMath.normalizeLambda(this.proj_.lam0 - Math.PI);
   const lamRanges = [];
   if ( dataRect.lambda[0] < lamAntipode && lamAntipode < dataRect.lambda[1] ) {
@@ -403,11 +410,11 @@ GraticuleRenderer.prototype.renderLongitudeLines = function(viewWindow, dataRect
     const phi = lat * Math.PI / 180.0;
     for (let k = 0; k < lamRanges.length; k++ ) {
       const lamRange = lamRanges[k];
-      const line = this.interpolator_.createLongitudeLine(phi, lamRange[0], lamRange[1]);
+      const line = this.interpolator_.createLongitudeLine(phi, lamRange[0], lamRange[1]);   //  GraticuleInterpolator
       if ( line == null ) {
         continue;
       }
-      const list = line.generateLists(this.unitLength_, this.separateThreshold_, count);
+      const list = line.generateLists(unitLength, this.separateThreshold_, count);
       for (let i = 0; i < list.length; i++ ) {
         this.shaderProg_.renderLongitudeLine(phi, list[i], viewWindow);
       }
