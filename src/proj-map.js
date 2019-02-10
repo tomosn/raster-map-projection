@@ -1,6 +1,6 @@
 /**
- * Raster Map Projection v0.0.25  2018-12-30
- * Copyright (C) 2016-2018 T.Seno
+ * Raster Map Projection v0.0.27  2019-02-10
+ * Copyright (C) 2016-2019 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
  */
@@ -693,6 +693,9 @@ MapView.prototype.render = function(force) {
   const theta = this.viewWindowManager_.getRotate();
   this.imageProj.setTransform(vc[0], vc[1], vs[0], vs[1], theta);
 
+  const canvasSize = this.viewWindowManager_.canvasSize;
+  this.imageProj.setCanvasSize(canvasSize.width, canvasSize.height);
+
   //
   for (let k = 0; k < this.layers_.length; ++k) {
     if ( this.layers_[k].visibility ) {
@@ -996,17 +999,15 @@ PolylineLayer.prototype.render = function(mapView) {
  * @param {object} style (option)
  */
 function GraticuleLayer(layerId, style) {
-  Layer.call(this, layerId, ProjShaderProgram.COORD_TYPE_DATA);
+  Layer.call(this, layerId, ProjShaderProgram.COORD_TYPE_SCREEN);
   //
-  this.graticuleRenderer_ = null;
-  //
-  this.color = {r: 0.88, g: 0.88, b: 0.88, a: 1.0};
+  //this.color = {r: 0.88, g: 0.88, b: 0.88, a: 1.0};
   this.intervalDegrees = 20;   //  単位：度   0以下の場合は緯度経度線を描画しない
   //
   if (typeof style !== 'undefined') {
-    if ('color' in style) {
-      this.color = style.color;
-    }
+    // if ('color' in style) {
+    //   this.color = style.color;
+    // }
     if ('intervalDegrees' in style) {
       this.intervalDegrees = style.intervalDegrees;
     }
@@ -1015,22 +1016,13 @@ function GraticuleLayer(layerId, style) {
 Object.setPrototypeOf(GraticuleLayer.prototype, Layer.prototype);
 
 GraticuleLayer.prototype.invalidate = function() {
-  this.graticuleRenderer_ = null;
   this.markInvalid();
 };
 
 GraticuleLayer.prototype.render = function(mapView) {
   if ( 0 < this.intervalDegrees ) {
-    if ( this.graticuleRenderer_ == null ) {
-      this.graticuleRenderer_ = new GraticuleRenderer(mapView.imageProj, mapView.projection);
-    }
-
-    mapView.imageProj.setCoordTypeData();
-    mapView.imageProj.setColor(this.color);
-    //  TODO 効率化、リファクタリング -> 回転変換を加えてより非効率になった。要修正。
-    const window = mapView.getWindowBounds();
-    const dataRect = mapView.projection.inverseBoundingBox(window[0], window[1], window[2], window[3]);
-    this.graticuleRenderer_.renderLines(window, dataRect, this.intervalDegrees);
+    mapView.imageProj.prepareRenderGraticule();
+    mapView.imageProj.renderGraticule(this.intervalDegrees);
   }
   //
   this.markValid();

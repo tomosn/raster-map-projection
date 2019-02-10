@@ -1,6 +1,6 @@
 /**
- * Raster Map Projection v0.0.25  2018-12-30
- * Copyright (C) 2016-2018 T.Seno
+ * Raster Map Projection v0.0.27  2019-02-10
+ * Copyright (C) 2016-2019 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
  *
@@ -389,6 +389,8 @@ function ProjShaderProgram(gl) {
   this.locUnifOpacity_ = null;
   this.locUnifTextureType_ = null;
   this.locUnifTexture_ = null;
+  this.locUnifCanvasSize_ = null;
+  this.locUnifGraticuleIntervalDeg_ = null;
 }
 
 /**
@@ -471,6 +473,10 @@ ProjShaderProgram.prototype.setTransform = function(cx, cy, dx, dy, theta) {
   ];   //  transpose
   this.gl_.uniformMatrix3fv(this.locUnifFwdTransform_, false, mat);
   this.gl_.uniformMatrix3fv(this.locUnifInvTransform_, false, inv);
+};
+
+ProjShaderProgram.prototype.setCanvasSize = function(width, height) {
+  this.gl_.uniform2f(this.locUnifCanvasSize_, width, height);
 };
 
 
@@ -576,6 +582,20 @@ ProjShaderProgram.prototype.setTextureType_ = function(textureType) {
 };
 
 /**
+ * @param intervalDeg
+ */
+ProjShaderProgram.prototype.setGraticuleIntervalDeg = function(intervalDeg) {
+  this.gl_.uniform1f(this.locUnifGraticuleIntervalDeg_, intervalDeg);
+};
+
+/**
+ *
+ */
+ProjShaderProgram.prototype.disableGraticule_ = function() {
+  this.gl_.uniform1f(this.locUnifGraticuleIntervalDeg_, -1.0);
+};
+
+/**
  * @param viewRect
  */
 ProjShaderProgram.prototype.prepareRenderSurface = function() {
@@ -597,6 +617,7 @@ ProjShaderProgram.prototype.prepareRenderSurface = function() {
 
   this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_SURFACE);
   this.bindTexture(null);
+  this.disableGraticule_();
 };
 
 /**
@@ -610,6 +631,7 @@ ProjShaderProgram.prototype.prepareRenderPoints = function() {
 
   this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
   this.bindTexture(null);
+  this.disableGraticule_();
 };
 
 /**
@@ -623,29 +645,29 @@ ProjShaderProgram.prototype.prepareRenderPolyline = function() {
 
   this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
   this.bindTexture(null);
+  this.disableGraticule_();
 };
 
 /**
- *
+ * @param viewRect
  */
-ProjShaderProgram.prototype.prepareRenderLatitudeLine = function() {
-  this.gl_.disableVertexAttribArray(this.locAttrCoordX_);
-  this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
-  this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 0, 0);
-
-  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
-  this.bindTexture(null);
-};
-
-/**
- *
- */
-ProjShaderProgram.prototype.prepareRenderLongitudeLine = function() {
-  this.gl_.disableVertexAttribArray(this.locAttrCoordY_);
+ProjShaderProgram.prototype.prepareRenderGraticule = function() {
   this.gl_.enableVertexAttribArray(this.locAttrCoordX_);
-  this.gl_.vertexAttribPointer(this.locAttrCoordX_, 1, this.gl_.FLOAT, this.gl_.FALSE, 0, 0);
+  this.gl_.vertexAttribPointer(this.locAttrCoordX_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 0);
+  this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
+  this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 4);
+
+  const data = new Float32Array([
+    // Screen(x,y)
+    -1.0, +1.0,
+    -1.0, -1.0,
+    +1.0, +1.0,
+    +1.0, -1.0,
+  ]);
+  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, data);
 
   this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+  this.setCoordTypeScreen();
   this.bindTexture(null);
 };
 
@@ -717,25 +739,12 @@ ProjShaderProgram.prototype.renderPoints = function(points) {
 };
 
 /**
- * @param lam
- * @param phiList
- * @param viewWindow 省略可
+ * @param
+ * @param dataRect
  */
-ProjShaderProgram.prototype.renderLatitudeLine = function(lam, phiList, viewWindow) {
-  this.gl_.vertexAttrib1f(this.locAttrCoordX_, lam);
-  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(phiList));
-  this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, phiList.length);
-};
-
-/**
- * @param phi
- * @param lamList
- * @param viewWindow 省略可
- */
-ProjShaderProgram.prototype.renderLongitudeLine = function(phi, lamList, viewWindow) {
-  this.gl_.vertexAttrib1f(this.locAttrCoordY_, phi);
-  this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(lamList));
-  this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, lamList.length);
+ProjShaderProgram.prototype.renderGraticule = function(intervalDeg) {
+  this.gl_.uniform1f(this.locUnifGraticuleIntervalDeg_, intervalDeg);
+  this.gl_.drawArrays(this.gl_.TRIANGLE_STRIP, 0, 4);
 };
 
 /**
@@ -779,6 +788,8 @@ ProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
   this.locUnifOpacity_ = this.gl_.getUniformLocation(this.program_, 'uOpacity');
   this.locUnifTextureType_ = this.gl_.getUniformLocation(this.program_, 'uTextureType');
   this.locUnifTexture_ = this.gl_.getUniformLocation(this.program_, 'uTexture');
+  this.locUnifCanvasSize_ = this.gl_.getUniformLocation(this.program_, 'uCanvasSize');
+  this.locUnifGraticuleIntervalDeg_ = this.gl_.getUniformLocation(this.program_, 'uGraticuleIntervalDeg');
 
   this.coordsBuffer_ = this.createBuffer_(ProjShaderProgram.DIMENSION, ProjShaderProgram.POINTS_BUFFER_SIZE);
   this.gl_.bindBuffer(this.gl_.ARRAY_BUFFER, this.coordsBuffer_.buffer);

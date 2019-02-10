@@ -11,8 +11,7 @@ module.exports = function (grunt) {
         'src/rasterproj-aeqd.js',
         'src/rasterproj-laea.js',
         'src/rasterproj-tmerc.js',
-        'src/proj-map.js',
-        'src/graticule-renderer.js'
+        'src/proj-map.js'
       ],
       options: {
         jshintrc: '.jshintrc'
@@ -31,7 +30,7 @@ module.exports = function (grunt) {
             ' * <%= pkg.name %> <%= pkg.version %>  <%= grunt.template.today("yyyy-mm-dd") %>',
             ' *   https://github.com/tomosn/raster-map-projection',
             ' *   <%= pkg.description %>',
-            ' * Copyright (C) 2016-2018 <%= pkg.author %>',
+            ' * Copyright (C) 2016-2019 <%= pkg.author %>',
             ' * All rights reserved. ',
             ' * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)',
             ' */',
@@ -44,8 +43,7 @@ module.exports = function (grunt) {
           'dist/rasterproj-aeqd.min.js': 'src/rasterproj-aeqd.js',
           'dist/rasterproj-laea.min.js': 'src/rasterproj-laea.js',
           'dist/rasterproj-tmerc.min.js': 'src/rasterproj-tmerc.js',
-          'dist/proj-map.min.js': 'src/proj-map.js',
-          'dist/graticule-renderer.min.js': 'src/graticule-renderer.js',
+          'dist/proj-map.min.js': 'src/proj-map.js'
         }
       }
     }

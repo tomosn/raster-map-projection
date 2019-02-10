@@ -1,6 +1,6 @@
 /**
- * Raster Map Projection v0.0.25  2018-12-30
- * Copyright (C) 2016-2018 T.Seno
+ * Raster Map Projection v0.0.27  2019-02-10
+ * Copyright (C) 2016-2019 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
  */
@@ -14,67 +14,6 @@ if (typeof module!='undefined' && module.exports) {
 
 RasterMapProjection.createProjection = function(lam0, phi0, optDivN) {
   return new ProjTMERC(lam0, phi0);
-};
-
-RasterMapProjection.createShaderProgram = function(gl, proj) {
-  const imageProj = new TMERCProjShaderProgram(gl);
-  imageProj.init(proj.getVertexShaderStr(), proj.getFragmentShaderStr());
-  return imageProj;
-};
-
-// -----------------------------------------------------
-
-function TMERCProjShaderProgram(gl) {
-  ProjShaderProgram.call(this, gl);
-  this.locUnifBaseY_ = null;
-}
-Object.setPrototypeOf(TMERCProjShaderProgram.prototype, ProjShaderProgram.prototype);
-
-
-TMERCProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
-  const ret = ProjShaderProgram.prototype.init.call(this, vertShaderStr, fragShaderStr);
-  if ( ret ) {
-    this.locUnifBaseY_ = this.gl_.getUniformLocation(this.program_, 'uBaseY');   //  for TMERC
-  }
-  return ret;
-};
-
-TMERCProjShaderProgram.prototype.renderLatitudeLine = function(lam, phiList, viewWindow) {
-  let idxY1 = 0;
-  let idxY2 = 0;
-  if ( viewWindow ) {
-    idxY1 = this.getPeriodIndexY_(viewWindow[1]);
-    idxY2 = this.getPeriodIndexY_(viewWindow[3]);
-  }
-  const midPhi = (phiList[0] + phiList[phiList.length-1]) / 2.0;
-  let baseY = 0.0;
-  if ( 0.0 < midPhi ) {
-    baseY = Math.PI/2;
-  } else if ( midPhi < 0.0 ) {
-    baseY = -Math.PI/2;
-  }
-  for (let idxY = idxY1; idxY <= idxY2; ++idxY ) {
-    this.gl_.uniform1f(this.locUnifBaseY_, 2 * Math.PI * idxY + baseY);
-    ProjShaderProgram.prototype.renderLatitudeLine.call(this, lam, phiList);
-  }
-};
-
-TMERCProjShaderProgram.prototype.renderLongitudeLine = function(phi, lamList, viewWindow) {
-  let idxY1 = 0;
-  let idxY2 = 0;
-  if ( viewWindow ) {
-    idxY1 = this.getPeriodIndexY_(viewWindow[1]);
-    idxY2 = this.getPeriodIndexY_(viewWindow[3]);
-  }
-  const baseY = 0.0;        //  MEMO: longitudeLineについて、正規化ありでこの値で適切であることを確認
-  for (let idxY = idxY1; idxY <= idxY2; ++idxY ) {
-    this.gl_.uniform1f(this.locUnifBaseY_, 2 * Math.PI * idxY + baseY);
-    ProjShaderProgram.prototype.renderLongitudeLine.call(this, phi, lamList);
-  }
-};
-
-TMERCProjShaderProgram.prototype.getPeriodIndexY_ = function(y) {
-  return Math.floor( (y + Math.PI) / (2*Math.PI) );
 };
 
 // -----------------------------------------------------
@@ -453,8 +392,6 @@ ProjTMERC.VERTEX_SHADER_STR = [
   'varying vec2 vCoord;',
   'varying float vInRange;',
 
-  'uniform float uBaseY;',     //  基準となるビュー上のY座標
-
   'uniform float uPointSize;',
   'uniform lowp int uCoordType;',      // 入力座標系種別  0: Data Coordinates, 1: XY Coordinates, 2: Screen
   'uniform lowp int uTextureType;',    //  0:NotUse, 1:PointTexture, 2:SurfaceTexture
@@ -463,15 +400,16 @@ ProjTMERC.VERTEX_SHADER_STR = [
   //'const float epsilon = 0.00000001;',
   'const float epsilon = 0.001;',
 
-  'vec2 proj_forward(vec2 center, vec2 lp, float baseY)',
+//  'vec2 proj_forward(vec2 center, vec2 lp, float baseY)',
+  'vec2 proj_forward(vec2 center, vec2 lp)',
   '{',
   '  float b = cos(lp.y) * sin(lp.x - center.x);',
   '  float x = log((1.0 + b) / (1.0 - b)) / 2.0;',    //  = arctanh(B)
   '  float y = atan(tan(lp.y), cos(lp.x - center.x));',
-  '  float dy = y - baseY + pi;',
-  '  if ( dy < 0.0 || 2.0*pi <= dy ) {',       //  この正規化の処理がない場合は緯度線で不正な縦線が生じることを確認済み(05/21)
-  '    y = y - 2.0*pi * floor(dy / (2.0*pi));',
-  '  }',
+//  '  float dy = y - baseY + pi;',
+//  '  if ( dy < 0.0 || 2.0*pi <= dy ) {',       //  この正規化の処理がない場合は緯度線で不正な縦線が生じることを確認済み(05/21)
+//  '    y = y - 2.0*pi * floor(dy / (2.0*pi));',
+//  '  }',
   '  return vec2(x, y - center.y);',
   '}',
 
@@ -490,7 +428,8 @@ ProjTMERC.VERTEX_SHADER_STR = [
   '    pos = uFwdTransform * vec3(aCoordX, aCoordY, 1.0);',
   '    vInRange = check_xy_range(vec2(aCoordX, aCoordY));',
   '  } else {',                                      //  Data Coord
-  '    vec2 xy = proj_forward(uProjCenter, vec2(aCoordX, aCoordY), uBaseY);',
+//  '    vec2 xy = proj_forward(uProjCenter, vec2(aCoordX, aCoordY), uBaseY);',
+  '    vec2 xy = proj_forward(uProjCenter, vec2(aCoordX, aCoordY));',
   '    vInRange = check_xy_range(xy);',
   '    pos = uFwdTransform * vec3(xy.x, xy.y, 1.0);',
   '  }',
@@ -515,6 +454,8 @@ ProjTMERC.FRAGMENT_SHADER_STR = [
   'uniform vec2 uClipCoord2;',
   'uniform lowp int uCoordType;',      // 入力座標系種別  0: Data Coordinates, 1: XY Coordinates, 2: Screen
   'uniform lowp int uTextureType;',    //  0:NotUse, 1:PointTexture, 2:SurfaceTexture
+  'uniform vec2 uCanvasSize;',
+  'uniform float uGraticuleIntervalDeg;',   //  緯度経度線の描画間隔[degrees]
   'uniform sampler2D uTexture;',
   'uniform vec2 uProjCenter;',
   'uniform vec4 uColor;',
@@ -549,10 +490,79 @@ ProjTMERC.FRAGMENT_SHADER_STR = [
   '  return 1.0;',
   '}',
 
+  'float validate_xy(vec2 xy)',
+  '{',
+  '  return 1.0;',
+  '}',
+
+  //  緯度経度線描画のための関数
+  'vec2 graticule_level(vec2 lp, vec2 baseLonLat) {',
+  '  vec2 lonlat = degrees(lp);',
+  '  if ( 135.0 < abs(baseLonLat.x) ) {',
+  '    lonlat.x = mod(lonlat.x + 360.0, 360.0);',     //  連続性を保つため日付変更線付近では基準を変更
+  '  }',
+  '  return floor(lonlat / uGraticuleIntervalDeg);',
+  '}',
+
+  //   緯度経度線描画
+  'bool render_graticule() {',
+  '  vec2 viewCoord = (uInvTransform * vec3(vCoord.x, vCoord.y, 1.0)).xy;',
+  '  if ( validate_xy(viewCoord) == 0.0 ) {',
+  '    return false;',
+  '  }',
+
+  '  vec2 lp = proj_inverse(uProjCenter, viewCoord);',                 //  緯度経度
+  '  vec2 baseLonLat = degrees(lp);',      //  該当ピクセルの緯度経度
+  '  float absLat = abs(baseLonLat.y);',
+  '  if (81.0 < absLat) {',
+  '    return false;',   //  両極付近は描画対象外
+  '  }',
+
+  '  vec2 v1 = (uInvTransform * vec3(vCoord.x, vCoord.y + 1.0/uCanvasSize.y, 1.0)).xy;',
+  '  vec2 v3 = (uInvTransform * vec3(vCoord.x - 1.0/uCanvasSize.x, vCoord.y, 1.0)).xy;',
+  '  vec2 v5 = (uInvTransform * vec3(vCoord.x + 1.0/uCanvasSize.x, vCoord.y, 1.0)).xy;',
+  '  vec2 v7 = (uInvTransform * vec3(vCoord.x, vCoord.y - 1.0/uCanvasSize.y, 1.0)).xy;',
+
+  '  if ( validate_xy(v1) == 0.0 ||  validate_xy(v3) == 0.0 || validate_xy(v5) == 0.0 || validate_xy(v7) == 0.0) {',
+  '    return false;',
+  '  }',
+
+  '  vec2 z = -4.0 * graticule_level(lp, baseLonLat);',
+  '  z += graticule_level(proj_inverse(uProjCenter, v1), baseLonLat);',
+  '  z += graticule_level(proj_inverse(uProjCenter, v3), baseLonLat);',
+  '  z += graticule_level(proj_inverse(uProjCenter, v5), baseLonLat);',
+  '  z += graticule_level(proj_inverse(uProjCenter, v7), baseLonLat);',
+
+  '  vec2 col = min(abs(z) / 1.9, 1.0);',
+  '  float alpha = 0.0;',
+  '  if (80.0 < absLat) {',
+  '    alpha = col.y;',    //  ±80度より極付近は経線は描画しない
+  '  } else {',
+  '    alpha = max(col.x, col.y);',
+  '  }',
+
+  '  if (alpha == 0.0) {',
+  '    return false;',
+  '  }',
+
+  '  vec3 lineColor = vec3(0.8);',
+  '  gl_FragColor = vec4(lineColor, alpha * 0.75);',
+
+  '  return true;',
+  '}',
+
   'void main()',
   '{',
   '  if ( vInRange < 0.5 ) {',
   '    discard;',
+  '    return;',
+  '  }',
+
+  '  if ( 0.0 < uGraticuleIntervalDeg ) {',
+  '    bool rendered = render_graticule();',
+  '    if ( !rendered ) {',
+  '      discard;',
+  '    }',
   '    return;',
   '  }',
 
