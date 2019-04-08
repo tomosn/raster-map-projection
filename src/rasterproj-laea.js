@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.27  2019-02-10
+ * Raster Map Projection v0.0.28  2019-04-08
  * Copyright (C) 2016-2019 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -574,21 +574,17 @@ ProjLAEA.VERTEX_SHADER_STR = [
   'attribute float aCoordY;',
   'uniform mat3 uFwdTransform;',
   'uniform vec2 uProjCenter;',
-
   'varying vec2 vCoord;',
   'varying float vInRange;',
 
   'uniform float uPointSize;',
-  'uniform lowp int uCoordType;',      // 入力座標系種別  0: Data Coordinates, 1: XY Coordinates, 2: Screen
-  'uniform lowp int uTextureType;',    //  0:NotUse, 1:PointTexture, 2:SurfaceTexture
+  'uniform lowp int uCoordType;',
+  'uniform lowp int uTextureType;',
 
   'const float pi = 3.141592653589793;',
-  //'const float epsilon = 0.00000001;',
   'const float epsilon = 0.001;',
-  'const float xyDomain = 0.86 * 0.707106781 * pi;',   //  range: PI/sqrt(2)
 
-  'vec2 proj_forward(vec2 center, vec2 lp)',
-  '{',
+  'vec2 proj_forward(vec2 center, vec2 lp) {',
   '  float sinPhi0 = sin(center.y);',
   '  float cosPhi0 = cos(center.y);',
 
@@ -603,7 +599,7 @@ ProjLAEA.VERTEX_SHADER_STR = [
   '  float y = cosPhi0 * sinPhi - sinPhi0 * cosPhi * cosLam;',
 
   '  if ( v < -1.0 + epsilon ) {',
-  '    return 2.0 * normalize(vec2(x, y));',   //  対蹠点
+  '    return 2.0 * normalize(vec2(x, y));',
   '  }',
 
   '  float k = sqrt(2.0 / (1.0 + v));',
@@ -611,21 +607,21 @@ ProjLAEA.VERTEX_SHADER_STR = [
   '  return k * vec2(x, y);',
   '}',
 
-  'float check_xy_range(vec2 xy)',
-  '{',
+  'const float xyDomain = 0.86 * 0.707106781 * pi;',
+
+  'float check_xy_range(vec2 xy) {',
   '  return 1.0 - step(xyDomain, length(xy));',
   '}',
 
-  'void main()',
-  '{',
+  'void main() {',
   '  vInRange = 1.0;',
   '  vec3 pos;',
-  '  if ( uTextureType == 2 || uCoordType == 2 ) {',  //  Screen or Surface Texture
+  '  if ( uTextureType == 2 || uCoordType == 2 ) {',
   '    pos = vec3(aCoordX, aCoordY, 1.0);',
-  '  } else if ( uCoordType == 1 ) {',               //  XY Coord
+  '  } else if ( uCoordType == 1 ) {',
   '    pos = uFwdTransform * vec3(aCoordX, aCoordY, 1.0);',
   '    vInRange = check_xy_range(vec2(aCoordX, aCoordY));',
-  '  } else {',                                      //  Data Coord
+  '  } else {',
   '    vec2 xy = proj_forward(uProjCenter, vec2(aCoordX, aCoordY));',
   '    vInRange = check_xy_range(xy);',
   '    pos = uFwdTransform * vec3(xy.x, xy.y, 1.0);',
@@ -634,6 +630,7 @@ ProjLAEA.VERTEX_SHADER_STR = [
   '  gl_Position = vec4(pos, 1.0);',
   '  gl_PointSize = uPointSize;',
   '}',
+
 
 ].join('\n');
 
@@ -649,11 +646,11 @@ ProjLAEA.FRAGMENT_SHADER_STR = [
   'uniform vec2 uDataCoord2;',
   'uniform vec2 uClipCoord1;',
   'uniform vec2 uClipCoord2;',
-  'uniform lowp int uCoordType;',      // 入力座標系種別  0: Data Coordinates, 1: XY Coordinates, 2: Screen
-  'uniform lowp int uTextureType;',    //  0:NotUse, 1:PointTexture, 2:SurfaceTexture
-  'uniform sampler2D uTexture;',
+  'uniform lowp int uCoordType;',
+  'uniform lowp int uTextureType;',
   'uniform vec2 uCanvasSize;',
-  'uniform float uGraticuleIntervalDeg;',   //  緯度経度線の描画間隔[degrees]
+  'uniform float uGraticuleIntervalDeg;',
+  'uniform sampler2D uTexture;',
   'uniform vec2 uProjCenter;',
   'uniform vec4 uColor;',
   'uniform float uOpacity;',
@@ -663,12 +660,10 @@ ProjLAEA.FRAGMENT_SHADER_STR = [
 
   'const float pi = 3.141592653589793;',
   'const float epsilon = 0.00000001;',
-  //'const float epsilon = 0.001;',
   'const float blurRatio = 0.015;',
-  'const float xyRadius = 2.0;',
 
-  'vec2 proj_inverse(vec2 center, vec2 xy)',
-  '{',
+  'vec2 proj_inverse(vec2 center, vec2 xy) {',
+  '  float xyRadius = 2.0;',
   '  float sinPhi0 = sin(center.y);',
   '  float cosPhi0 = cos(center.y);',
 
@@ -692,58 +687,99 @@ ProjLAEA.FRAGMENT_SHADER_STR = [
   '  return vec2(lam, phi);',
   '}',
 
-  'float inner_xy(vec2 xy)',
-  '{',
+  'float inner_xy(vec2 xy) {',
+  '  float xyRadius = 2.0;',
   '  return 1.0 - smoothstep( (1.0 - blurRatio) * xyRadius, (1.0 + blurRatio) * xyRadius, length(xy) );',
   '}',
 
-  'float validate_xy(vec2 xy)',
-  '{',
+  'float validate_xy(vec2 xy) {',
+  '  float xyRadius = 2.0;',
   '  return 1.0 - step(xyRadius, length(xy));',
   '}',
 
-  //  緯度経度線描画のための関数
-  'vec2 graticule_level(vec2 lp, vec2 baseLonLat) {',
+
+  'vec2 graticule_level(vec2 lp, bool isNearDateLine) {',
   '  vec2 lonlat = degrees(lp);',
-  '  if ( 135.0 < abs(baseLonLat.x) ) {',
-  '    lonlat.x = mod(lonlat.x + 360.0, 360.0);',     //  連続性を保つため日付変更線付近では基準を変更
+  '  if ( isNearDateLine ) {',
+  '    lonlat.x = mod(lonlat.x + 360.0, 360.0);',
   '  }',
   '  return floor(lonlat / uGraticuleIntervalDeg);',
   '}',
 
-  //   緯度経度線描画
+
   'bool render_graticule() {',
   '  vec2 viewCoord = (uInvTransform * vec3(vCoord.x, vCoord.y, 1.0)).xy;',
   '  if ( validate_xy(viewCoord) == 0.0 ) {',
   '    return false;',
   '  }',
 
-  '  vec2 lp = proj_inverse(uProjCenter, viewCoord);',                 //  緯度経度
-  '  vec2 baseLonLat = degrees(lp);',      //  該当ピクセルの緯度経度
+  '  vec2 lp = proj_inverse(uProjCenter, viewCoord);',
+  '  vec2 baseLonLat = degrees(lp);',
   '  float absLat = abs(baseLonLat.y);',
   '  if (81.0 < absLat) {',
-  '    return false;',   //  両極付近は描画対象外
-  '  }',
-
-  '  vec2 v1 = (uInvTransform * vec3(vCoord.x, vCoord.y + 1.0/uCanvasSize.y, 1.0)).xy;',
-  '  vec2 v3 = (uInvTransform * vec3(vCoord.x - 1.0/uCanvasSize.x, vCoord.y, 1.0)).xy;',
-  '  vec2 v5 = (uInvTransform * vec3(vCoord.x + 1.0/uCanvasSize.x, vCoord.y, 1.0)).xy;',
-  '  vec2 v7 = (uInvTransform * vec3(vCoord.x, vCoord.y - 1.0/uCanvasSize.y, 1.0)).xy;',
-
-  '  if ( validate_xy(v1) == 0.0 ||  validate_xy(v3) == 0.0 || validate_xy(v5) == 0.0 || validate_xy(v7) == 0.0) {',
   '    return false;',
   '  }',
 
-  '  vec2 z = -4.0 * graticule_level(lp, baseLonLat);',
-  '  z += graticule_level(proj_inverse(uProjCenter, v1), baseLonLat);',
-  '  z += graticule_level(proj_inverse(uProjCenter, v3), baseLonLat);',
-  '  z += graticule_level(proj_inverse(uProjCenter, v5), baseLonLat);',
-  '  z += graticule_level(proj_inverse(uProjCenter, v7), baseLonLat);',
+  '  float dx = 0.5 / uCanvasSize.x;',
+  '  float dy = 0.5 / uCanvasSize.y;',
 
-  '  vec2 col = min(abs(z) / 1.9, 1.0);',
+  '  vec2 tv = (uInvTransform * vec3(vCoord.x, vCoord.y, 1.0)).xy;',
+  '  vec2 tdx = uInvTransform[0].xy * dx;',
+  '  vec2 tdy = uInvTransform[1].xy * dy;',
+
+  '  vec2 v01 = tv - 3.0 * tdx + 1.0 * tdy;',
+  '  vec2 v02 = tv - 3.0 * tdx - 1.0 * tdy;',
+
+  '  vec2 v10 = tv - 1.0 * tdx + 3.0 * tdy;',
+  '  vec2 v11 = tv - 1.0 * tdx + 1.0 * tdy;',
+  '  vec2 v12 = tv - 1.0 * tdx - 1.0 * tdy;',
+  '  vec2 v13 = tv - 1.0 * tdx - 3.0 * tdy;',
+
+  '  vec2 v20 = tv + 1.0 * tdx + 3.0 * tdy;',
+  '  vec2 v21 = tv + 1.0 * tdx + 1.0 * tdy;',
+  '  vec2 v22 = tv + 1.0 * tdx - 1.0 * tdy;',
+  '  vec2 v23 = tv + 1.0 * tdx - 3.0 * tdy;',
+
+  '  vec2 v31 = tv + 3.0 * tdx + 1.0 * tdy;',
+  '  vec2 v32 = tv + 3.0 * tdx - 1.0 * tdy;',
+
+  '  if ( validate_xy(v01) == 0.0 ||  validate_xy(v02) == 0.0 || validate_xy(v31) == 0.0 || validate_xy(v32) == 0.0) {',
+  '    return false;',
+  '  }',
+  '  if ( validate_xy(v10) == 0.0 ||  validate_xy(v11) == 0.0 || validate_xy(v12) == 0.0 || validate_xy(v13) == 0.0) {',
+  '    return false;',
+  '  }',
+  '  if ( validate_xy(v20) == 0.0 ||  validate_xy(v21) == 0.0 || validate_xy(v22) == 0.0 || validate_xy(v23) == 0.0) {',
+  '    return false;',
+  '  }',
+
+  '  bool isNearDateLine = ( 135.0 < abs(baseLonLat.x) );',
+
+  '  vec2 l01 = graticule_level(proj_inverse(uProjCenter, v01), isNearDateLine);',
+  '  vec2 l02 = graticule_level(proj_inverse(uProjCenter, v02), isNearDateLine);',
+
+  '  vec2 l10 = graticule_level(proj_inverse(uProjCenter, v10), isNearDateLine);',
+  '  vec2 l11 = graticule_level(proj_inverse(uProjCenter, v11), isNearDateLine);',
+  '  vec2 l12 = graticule_level(proj_inverse(uProjCenter, v12), isNearDateLine);',
+  '  vec2 l13 = graticule_level(proj_inverse(uProjCenter, v13), isNearDateLine);',
+
+  '  vec2 l20 = graticule_level(proj_inverse(uProjCenter, v20), isNearDateLine);',
+  '  vec2 l21 = graticule_level(proj_inverse(uProjCenter, v21), isNearDateLine);',
+  '  vec2 l22 = graticule_level(proj_inverse(uProjCenter, v22), isNearDateLine);',
+  '  vec2 l23 = graticule_level(proj_inverse(uProjCenter, v23), isNearDateLine);',
+
+  '  vec2 l31 = graticule_level(proj_inverse(uProjCenter, v31), isNearDateLine);',
+  '  vec2 l32 = graticule_level(proj_inverse(uProjCenter, v32), isNearDateLine);',
+
+  '  vec2 z11 = -4.0 * l11 + l01 + l10 + l21 + l12;',
+  '  vec2 z21 = -4.0 * l21 + l11 + l20 + l31 + l22;',
+  '  vec2 z12 = -4.0 * l12 + l02 + l11 + l22 + l13;',
+  '  vec2 z22 = -4.0 * l22 + l12 + l21 + l32 + l23;',
+
+  '  vec2 col = (min(abs(z11), 1.0) + min(abs(z21), 1.0) + min(abs(z12), 1.0) + min(abs(z22), 1.0)) * 0.25;',
   '  float alpha = 0.0;',
   '  if (80.0 < absLat) {',
-  '    alpha = col.y;',    //  ±80度より極付近は経線は描画しない
+  '    alpha = col.y;',
   '  } else {',
   '    alpha = max(col.x, col.y);',
   '  }',
@@ -758,8 +794,7 @@ ProjLAEA.FRAGMENT_SHADER_STR = [
   '  return true;',
   '}',
 
-  'void main()',
-  '{',
+  'void main() {',
   '  if ( vInRange < 0.5 ) {',
   '    discard;',
   '    return;',
@@ -776,18 +811,18 @@ ProjLAEA.FRAGMENT_SHADER_STR = [
   '  vec4 outColor;',
   '  bool isDiscard = false;',
 
-  '  if ( uTextureType == 2 ) {',   //   Surface Texture
+  '  if ( uTextureType == 2 ) {',
   '    float inXY = 1.0;',
   '    vec2 coord;',
-  '    if ( uCoordType == 2 ) {',         //  Screen Coord
+  '    if ( uCoordType == 2 ) {',
   '      coord = vCoord;',
   '    } else {',
   '      vec3 viewCoord = uInvTransform * vec3(vCoord.x, vCoord.y, 1.0);',
   '      inXY = inner_xy(viewCoord.xy);',
   '      if ( 0.0 < inXY ) {',
-  '        if ( uCoordType == 1 ) {',  //  XY Coord
+  '        if ( uCoordType == 1 ) {',
   '          coord = viewCoord.xy;',
-  '        } else if ( uCoordType == 0 ) {',   //  Data Coord
+  '        } else if ( uCoordType == 0 ) {',
   '          coord = proj_inverse(uProjCenter, viewCoord.xy);',
   '        }',
   '      } else {',
@@ -806,11 +841,11 @@ ProjLAEA.FRAGMENT_SHADER_STR = [
   '      }',
   '    }',
 
-  '  } else if ( uTextureType == 1 ) {',          //   Point Texture
+  '  } else if ( uTextureType == 1 ) {',
   '    outColor = texture2D(uTexture, gl_PointCoord);',
   '    isDiscard = (outColor.a == 0.0);',
 
-  '  } else {',                           //  Not Texture
+  '  } else {',
   '    outColor = uColor;',
   '    isDiscard = (outColor.a == 0.0);',
   '  }',
@@ -821,6 +856,7 @@ ProjLAEA.FRAGMENT_SHADER_STR = [
   '    gl_FragColor = outColor;',
   '  }',
   '}',
+
 
 ].join('\n');
 
