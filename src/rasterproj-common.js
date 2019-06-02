@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.27  2019-02-10
+ * Raster Map Projection v0.0.29  2019-06-02
  * Copyright (C) 2016-2019 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -42,6 +42,7 @@ RasterMapProjection.createShaderProgram = function(gl, proj) {
  * Point : { x: Float, y: Float }
  * GeoCoord : { lambda: Float, phi: Float }
  * Rectangle : { x1: Float, y1: Float, x2: Float, y2: Float }
+ * GeoRect : { lambda1:Float, phi1:Float, lambda2:Float, phi2:Float }
  * Range : { min: Float, max: Float }
  * Color : { r: Float, g: Float, b: Float, a: Float }
  */
@@ -78,8 +79,8 @@ ImageUtils.createTexture = function(gl, img) {
 function MathUtils() {}
 
 /**
- * @param src : source rect x1:Float, y1:Float, x2:Float, y2:Float
- * @param dst : destination rect x1:Float, y1:Float, x2:Float, y2:Float
+ * @param {Rectangle} src source rect { x1:Float, y1:Float, x2:Float, y2:Float }
+ * @param {Rectangle} dst destination { rect x1:Float, y1:Float, x2:Float, y2:Float }
  */
 MathUtils.getTransform = function(src, dst) {
   const dx = src.x2 - src.x1;
@@ -205,12 +206,13 @@ ProjMath.calcAngle = function(x1, y1, x2, y2) {
 
 /**
  * Rangeユーティリティ
+ *   Range : { min:Float, max:Float }
  */
 function RangeUtils() {}
 
-RangeUtils.intersects_ = function(range1, range2) {
-  //  range1 != null && range2 != null
-  return (range2[0] - range1[1]) * (range2[1] - range1[0]) <= 0.0;
+RangeUtils.intersects = function(range1, range2) {
+  // assert  range1 != null && range2 != null
+  return (range2.min - range1.max) * (range2.max - range1.min) <= 0.0;
 };
 
 //  交差する場合にそのunionを返す
@@ -218,12 +220,33 @@ RangeUtils.unionIfIntersects = function(range1, range2) {
   if (range1 === null || range2 === null) {
     return null;
   }
-  if ( !RangeUtils.intersects_(range1, range2) ) {
+  if ( !RangeUtils.intersects(range1, range2) ) {
     return null;
   }
-  const min = (range1[0] < range2[0]) ? range1[0] : range2[0];
-  const max = (range1[1] < range2[1]) ? range2[1] : range1[1];
-  return [min, max];
+  const min = (range1.min < range2.min) ? range1.min : range2.min;
+  const max = (range1.max < range2.max) ? range2.max : range1.max;
+  return { min:min, max:max };
+};
+
+RangeUtils.translate = function(range, t) {
+  return { min:range.min + t, max:range.max + t };
+};
+
+
+/* ------------------------------------------------------------ */
+
+/**
+ * Rectangleユーティリティ
+ *   Rectangle : { x1:Float, y1:Float, x2:Float, y2:Float }
+ */
+function RectangleUtils() {}
+
+RectangleUtils.getSize = function(rect) {
+  return { width: rect.x2 - rect.x1, height: rect.y2 - rect.y1 };
+};
+
+RectangleUtils.getCenter = function(rect) {
+  return [ (rect.x1 + rect.x2) / 2.0, (rect.y1 + rect.y2) / 2.0 ];
 };
 
 /* ------------------------------------------------------------ */
@@ -234,26 +257,27 @@ RangeUtils.unionIfIntersects = function(range1, range2) {
 function LambdaRangeUtils() {}
 
 LambdaRangeUtils.isPeriodic = function(range) {
-  return 2*Math.PI - ProjMath.EPSILON <= range[1] - range[0];
+  return 2*Math.PI - ProjMath.EPSILON <= range.max - range.min;
 };
 
 //  TODO 試験
+//  MEMO 現状では使用されていない
 LambdaRangeUtils.contains = function(outerRange, innerRange) {
   if ( LambdaRangeUtils.isPeriodic(outerRange) ) {
     return true;
   }
-  const outerLength = outerRange[1] - outerRange[0];
-  const innerLength = innerRange[1] - innerRange[0];
+  const outerLength = outerRange.max - outerRange.min;
+  const innerLength = innerRange.max - innerRange.min;
   if (outerLength < innerLength) {
     return false;
   }
   const outer = LambdaRangeUtils.normalize(outerRange);
   const inner = LambdaRangeUtils.normalize(innerRange);
-  if (outer[0] <= inner[0] && inner[1] <= outer[1]) {
+  if (outer.min <= inner.min && inner.max <= outer.max) {
     return true;
   }
-  if (Math.PI < outer[1]) {
-    if (inner[1] <= outer[1] - 2*Math.PI) {
+  if (Math.PI < outer.max) {
+    if (inner.max <= outer.max - 2*Math.PI) {
       return true;
     }
   }
@@ -265,99 +289,167 @@ LambdaRangeUtils.contains = function(outerRange, innerRange) {
  * lambda_minが -¥pi <= lambda_min < ¥pi の範囲内に収まるようにシフトする。
  * 但し、長さが 2¥pi を超える場合は [-¥pi, ¥pi] を返す。
  *
- * @param {Array} range [lambda_min, lambda_max]
- * @return {Array} [lambda_min, lambda_max]
+ * @param {Range} range { min:lambda_min, max:lambda_max }
+ * @return {Range} { min:lambda_min, max:lambda_max }
  */
 LambdaRangeUtils.normalize = function(range) {
   if ( LambdaRangeUtils.isPeriodic(range) ) {
-    return [-Math.PI, Math.PI];
+    return { min:-Math.PI, max:Math.PI };
   }
-  const lam1 = range[0];
+  const lam1 = range.min;
   if ( -Math.PI <= lam1 && lam1 < Math.PI ) {
     return range;
   }
   const d = 2 * Math.PI * Math.floor( (lam1 + Math.PI) / (2 * Math.PI) );
-  return [range[0] - d, range[1] - d];
+  return { min: range.min - d, max: range.max - d };
 };
 
 /* ------------------------------------------------------------ */
 
 
 /**
- * データ座標系ユーティリティ
+ * 地理座標系上の矩形に関するユーティリティ
  */
 function GeographicRectUtils() {}
 
-GeographicRectUtils.mergeRange_ = function(range1, range2) {
-  let range = null;
-  if ( range1 == null ) {
-    range = range2;
-  } else if ( range2 != null ) {
-    range = range1;
-    if ( range2[0] < range[0] ) {
-      range[0] = range2[0];
+/**
+ * ２個の地理座標系上の矩形に対して、重なりがある場合にその２個の矩形を含む最小の矩形を返す。
+ * 重なりが無い場合はnullを返す。
+ * 矩形を返す場合、lambdaの最小値が [-\pi, \pi) の範囲内に入るように正規化した矩形として返す。
+ * @param {GeoRect} rect1
+ * @param {GeoRect} rect2
+ * @return {GeoRect} GeoRect or null
+ */
+GeographicRectUtils.unionIfIntersects = function(rect1, rect2) {
+  if ( (rect2.phi2 - rect1.phi1) * (rect1.phi2 - rect2.phi1) < 0.0 ) {
+    return null;    //  phiの範囲に重なり無し
+  }
+
+  const phi1 = (rect1.phi1 < rect2.phi1) ? rect1.phi1 : rect2.phi1;
+  const phi2 = (rect1.phi2 < rect2.phi2) ? rect2.phi2 : rect1.phi2;
+
+  const round1 = LambdaRangeUtils.isPeriodic({ min:rect1.lambda1, max:rect1.lambda2 });
+  const round2 = LambdaRangeUtils.isPeriodic({ min:rect2.lambda1, max:rect2.lambda2 });
+  if (round1 || round2) {
+    return { lambda1:-Math.PI, lambda2:Math.PI, phi1:phi1, phi2:phi2 };
+  }
+
+  const lambda1 = LambdaRangeUtils.normalize({ min:rect1.lambda1, max:rect1.lambda2 });
+  const lambda2 = LambdaRangeUtils.normalize({ min:rect2.lambda1, max:rect2.lambda2 });
+
+  const isWrapDateLine1 = (Math.PI <= lambda1.max);
+  const isWrapDateLine2 = (Math.PI <= lambda2.max);
+
+  if (isWrapDateLine1 === isWrapDateLine2) {
+    if ( !RangeUtils.intersects(lambda1, lambda2) ) {
+      return null;    //  lambdaの範囲に重なり無し
     }
-    if ( range[1] < range2[1] ) {
-      range[1] = range2[1];
+    const lam1 = (lambda1.min < lambda2.min) ? lambda1.min : lambda2.min;
+    const lam2 = (lambda1.max < lambda2.max) ? lambda2.max : lambda1.max;
+    if (isWrapDateLine1) {
+      const lambdaRange = LambdaRangeUtils.normalize({ min:lam1, max:lam2 });
+      return { lambda1:lambdaRange.min, lambda2:lambdaRange.max, phi1:phi1, phi2:phi2 };
+    } else {
+      return { lambda1:lam1, lambda2:lam2, phi1:phi1, phi2:phi2 };
     }
   }
-  return range;
+
+  //  どちらか一方が180度線を跨ぐ場合
+  if ( RangeUtils.intersects(lambda1, lambda2) ) {
+    const lam1 = (lambda1.min < lambda2.min) ? lambda1.min : lambda2.min;
+    const lam2 = (lambda1.max < lambda2.max) ? lambda2.max : lambda1.max;
+    return { lambda1:lam1, lambda2:lam2, phi1:phi1, phi2:phi2 };
+  }
+  if (isWrapDateLine1) {
+    const shiftLambda1 = RangeUtils.translate(lambda1, -2*Math.PI);
+    if ( !RangeUtils.intersects(shiftLambda1, lambda2) ) {
+      return null;
+    }
+    const lam1 = (shiftLambda1.min < lambda2.min) ? shiftLambda1.min : lambda2.min;
+    const lam2 = (shiftLambda1.max < lambda2.max) ? lambda2.max : shiftLambda1.max;
+    const lambdaRange = LambdaRangeUtils.normalize({ min:lam1, max:lam2 });
+    return { lambda1:lambdaRange.min, lambda2:lambdaRange.max, phi1:phi1, phi2:phi2 };
+  } else {
+    const shiftLambda2 = RangeUtils.translate(lambda2, -2*Math.PI);
+    if ( !RangeUtils.intersects(lambda1, shiftLambda2) ) {
+      return null;
+    }
+    const lam1 = (lambda1.min < shiftLambda2.min) ? lambda1.min : shiftLambda2.min;
+    const lam2 = (lambda1.max < shiftLambda2.max) ? shiftLambda2.max : lambda1.max;
+    const lambdaRange = LambdaRangeUtils.normalize({ min:lam1, max:lam2 });
+    return { lambda1:lambdaRange.min, lambda2:lambdaRange.max, phi1:phi1, phi2:phi2 };
+  }
 };
 
-//  TODO 周期性を考慮したunionの定義を再検討。今のところ重なりが無いケースでの使用が無いため問題は無いが。
-//  TODO 試験！！
-GeographicRectUtils.union = function(rect1, rect2) {
-  const phiRange = GeographicRectUtils.mergeRange_(rect1.phi, rect2.phi);
-  //
-  const lambda1 = LambdaRangeUtils.normalize(rect1.lambda);
-  const lambda2 = LambdaRangeUtils.normalize(rect2.lambda);
-  const lamRange = GeographicRectUtils.mergeRange_(lambda1, lambda2);
-  return { lambda: LambdaRangeUtils.normalize(lamRange), phi: phiRange };
-};
-
-//  TODO lambda方向のintersectionの結果、２個に分離される場合を考慮できていない。
-//  TODO 試験！！
+/**
+ * ２個の地理座標系上の矩形に対して、その交差部分の矩形を返す。
+ * 周期性により交差部分が2個に分割される場合もあるため、結果は長さが1 or 2の配列として返す。
+ * 重なりが無い場合はnullを返す。
+ * 矩形を返す場合、lambdaの最小値が [-\pi, \pi) の範囲内に入るように正規化した矩形として返す。
+ * @param {GeoRect} rect1
+ * @param {GeoRect} rect2
+ * @return {Array} array of GeoRect, or null
+ */
 GeographicRectUtils.intersection = function(rect1, rect2) {
-  const phi1 = (rect1.phi[0] < rect2.phi[0]) ? rect2.phi[0] : rect1.phi[0];  //  大きい方
-  const phi2 = (rect1.phi[1] < rect2.phi[1]) ? rect1.phi[1] : rect2.phi[1];  //  小さい方
+  const phi1 = (rect1.phi1 < rect2.phi1) ? rect2.phi1 : rect1.phi1;  //  大きい方
+  const phi2 = (rect1.phi2 < rect2.phi2) ? rect1.phi2 : rect2.phi2;  //  小さい方
   if (phi2 <= phi1) {
     return null;   //  phiの範囲に重なり無し
   }
 
   //
-  let lamRange = null;
-  const round1 = LambdaRangeUtils.isPeriodic(rect1.lambda);
-  const round2 = LambdaRangeUtils.isPeriodic(rect2.lambda);
+  const round1 = LambdaRangeUtils.isPeriodic({ min:rect1.lambda1, max:rect1.lambda2 });
+  const round2 = LambdaRangeUtils.isPeriodic({ min:rect2.lambda1, max:rect2.lambda2 });
   if (round1 && round2) {
-    lamRange = [-Math.PI, Math.PI];
-  } else {
-    const lambda1 = LambdaRangeUtils.normalize(rect1.lambda);
-    const lambda2 = LambdaRangeUtils.normalize(rect2.lambda);
-    if (round1) {
-      lamRange = lambda2;
-    } else if (round2) {
-      lamRange = lambda1;
-    } else {
-      const lam1 = (lambda1[0] < lambda2[0]) ? lambda2[0] : lambda1[0];
-      const lam2 = (lambda1[1] < lambda2[1]) ? lambda1[1] : lambda2[1];
-      if (lam1 < lam2) {
-        lamRange = [lam1, lam2];
-      } else {
-        //  周期性を考慮して重なる場合の対応。但し分割して２領域が重なる場合に対応していない
-        const max = (lambda1[1] < lambda2[1]) ? lambda2[1] : lambda1[1];
-        if (Math.PI < max) {
-          const min = (lambda1[0] < lambda2[0]) ? lambda1[0] : lambda2[0];
-          if (min < max - 2*Math.PI) {
-            lamRange = [min, max - 2*Math.PI];
-          }
-        }
-        if (lamRange === null) {
-          return null;   //  lambdaの範囲に重なり無し
-        }
-      }
-    }
+    return [{ lambda1:-Math.PI, phi1:phi1, lambda2:+Math.PI, phi2:phi2 }];
   }
-  return { lambda:lamRange, phi:[phi1, phi2] };
+
+  if (round1) {
+    const lambda2 = LambdaRangeUtils.normalize({ min:rect2.lambda1, max:rect2.lambda2 });
+    return [{ lambda1:lambda2.min, phi1:phi1, lambda2:lambda2.max, phi2:phi2 }];
+  }
+  if (round2) {
+    const lambda1 = LambdaRangeUtils.normalize({ min:rect1.lambda1, max:rect1.lambda2 });
+    return [{ lambda1:lambda1.min, phi1:phi1, lambda2:lambda1.max, phi2:phi2 }];
+  }
+
+  const lambda1 = LambdaRangeUtils.normalize({ min:rect1.lambda1, max:rect1.lambda2 });
+  const lambda2 = LambdaRangeUtils.normalize({ min:rect2.lambda1, max:rect2.lambda2 });
+
+  const isWrapDateLine1 = (Math.PI <= lambda1.max);
+  const isWrapDateLine2 = (Math.PI <= lambda2.max);
+
+  if (!isWrapDateLine1 && !isWrapDateLine2) {
+    if ( !RangeUtils.intersects(lambda1, lambda2) ) {
+      return null;    //  lambdaの範囲に重なり無し
+    }
+    const lam1 = (lambda1.min < lambda2.min) ? lambda2.min : lambda1.min;
+    const lam2 = (lambda1.max < lambda2.max) ? lambda1.max : lambda2.max;
+    return [{ lambda1:lam1, lambda2:lam2, phi1:phi1, phi2:phi2 }];
+  }
+
+  //  どちらか一方が180度線を跨ぐ場合
+  const minRange = (lambda1.max < lambda2.max) ? lambda1 : lambda2;
+  const maxRange = (lambda1.max < lambda2.max) ? lambda2 : lambda1;
+
+  const result = [];
+  if ( RangeUtils.intersects(minRange, maxRange) ) {
+    const lam1 = (minRange.min < maxRange.min) ? maxRange.min : minRange.min;
+    const lam2 = minRange.max;
+    result.push({ lambda1:lam1, lambda2:lam2, phi1:phi1, phi2:phi2 });
+  }
+
+  const shiftRange = RangeUtils.translate(maxRange, -2*Math.PI);
+  if ( RangeUtils.intersects(minRange, shiftRange) ) {
+    const lam1 = minRange.min;
+    const lam2 = (minRange.max < shiftRange.max) ? minRange.max : shiftRange.max;
+    result.push({ lambda1:lam1, lambda2:lam2, phi1:phi1, phi2:phi2 });
+  }
+
+  if (result.length === 0) {
+    return null;
+  }
+  return result;
 };
 
 
@@ -396,21 +488,6 @@ function ProjShaderProgram(gl) {
 /**
  *
  */
-ProjShaderProgram.SCREEN_RECT = {x1: -1.0, y1: -1.0, x2: +1.0, y2: +1.0};
-
-/**
- *
- */
-ProjShaderProgram.DIMENSION = 2;
-
-/**
- *
- */
-ProjShaderProgram.POINTS_BUFFER_SIZE = 64;
-
-/**
- *
- */
 ProjShaderProgram.COORD_TYPE_DATA = 0;          //  データ座標系
 
 /**
@@ -421,22 +498,41 @@ ProjShaderProgram.COORD_TYPE_XY = 1;            //  XY座標系
 /**
  *
  */
-ProjShaderProgram.COORD_TYPE_SCREEN = 2;        //  SCREEN座標系（テクスチャ描画用）
+ProjShaderProgram.COORD_TYPE_SCREEN = 2;        //  SCREEN座標系
+
+
+
+//  以下の定数はprivate
 
 /**
  *
  */
-ProjShaderProgram.TEXTURE_TYPE_NONE = 0;        //  テクスチャ未使用
+ProjShaderProgram.SCREEN_RECT_ = {x1: -1.0, y1: -1.0, x2: +1.0, y2: +1.0};
 
 /**
  *
  */
-ProjShaderProgram.TEXTURE_TYPE_POINT = 1;        //  PointTexture
+ProjShaderProgram.DIMENSION_ = 2;
 
 /**
  *
  */
-ProjShaderProgram.TEXTURE_TYPE_SURFACE = 2;        //  SurfaceTexture
+ProjShaderProgram.POINTS_BUFFER_SIZE_ = 64;
+
+/**
+ *
+ */
+ProjShaderProgram.TEXTURE_TYPE_NONE_ = 0;        //  テクスチャ未使用
+
+/**
+ *
+ */
+ProjShaderProgram.TEXTURE_TYPE_POINT_ = 1;        //  PointTexture
+
+/**
+ *
+ */
+ProjShaderProgram.TEXTURE_TYPE_SURFACE_ = 2;        //  SurfaceTexture
 
 
 /**
@@ -447,16 +543,22 @@ ProjShaderProgram.prototype.getGLContext = function() {
 };
 
 /**
- * @param color
+ * @param {Color} color
  */
 ProjShaderProgram.prototype.setColor = function(color) {
   this.gl_.uniform4f(this.locUnifColor_, color.r, color.g, color.b, color.a);
 };
 
 //  MEMO setViewWindowに代わる変換。
-ProjShaderProgram.prototype.setTransform = function(cx, cy, dx, dy, theta) {
-  const hx = dx / 2.0;
-  const hy = dy / 2.0;
+/**
+ * @param {Array} viewCenter
+ * @param {Size} viewSize
+ */
+ProjShaderProgram.prototype.setTransform = function(viewCenter, viewSize, theta) {
+  const cx = viewCenter[0];
+  const cy = viewCenter[1];
+  const hx = viewSize.width / 2.0;
+  const hy = viewSize.height / 2.0;
 
   const cost = Math.cos(theta);
   const sint = Math.sin(theta);
@@ -475,8 +577,11 @@ ProjShaderProgram.prototype.setTransform = function(cx, cy, dx, dy, theta) {
   this.gl_.uniformMatrix3fv(this.locUnifInvTransform_, false, inv);
 };
 
-ProjShaderProgram.prototype.setCanvasSize = function(width, height) {
-  this.gl_.uniform2f(this.locUnifCanvasSize_, width, height);
+/**
+ * @param {Size} size canvas size
+ */
+ProjShaderProgram.prototype.setCanvasSize = function(size) {
+  this.gl_.uniform2f(this.locUnifCanvasSize_, size.width, size.height);
 };
 
 
@@ -489,7 +594,7 @@ ProjShaderProgram.prototype.setProjCenter = function(lam0, phi0) {
 };
 
 /**
- * @param sizef
+ * @param {Float} sizef
  */
 ProjShaderProgram.prototype.setPointSize = function(sizef) {
   this.gl_.uniform1f(this.locUnifPointSize_, sizef);
@@ -500,10 +605,10 @@ ProjShaderProgram.prototype.setPointSize = function(sizef) {
  */
 ProjShaderProgram.prototype.setPointTexture = function(texture) {
   if ( texture != null ) {
-    this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_POINT);
+    this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_POINT_);
     this.bindTexture(texture);
   } else {
-    this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+    this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE_);
     this.bindTexture(null);
   }
 };
@@ -615,7 +720,7 @@ ProjShaderProgram.prototype.prepareRenderSurface = function() {
 
   this.gl_.activeTexture(this.gl_.TEXTURE0);
 
-  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_SURFACE);
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_SURFACE_);
   this.bindTexture(null);
   this.disableGraticule_();
 };
@@ -629,7 +734,7 @@ ProjShaderProgram.prototype.prepareRenderPoints = function() {
   this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
   this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 4);
 
-  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE_);
   this.bindTexture(null);
   this.disableGraticule_();
 };
@@ -643,7 +748,7 @@ ProjShaderProgram.prototype.prepareRenderPolyline = function() {
   this.gl_.enableVertexAttribArray(this.locAttrCoordY_);
   this.gl_.vertexAttribPointer(this.locAttrCoordY_, 1, this.gl_.FLOAT, this.gl_.FALSE, 4*2, 4);
 
-  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE_);
   this.bindTexture(null);
   this.disableGraticule_();
 };
@@ -666,24 +771,25 @@ ProjShaderProgram.prototype.prepareRenderGraticule = function() {
   ]);
   this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, data);
 
-  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE);
+  this.setTextureType_(ProjShaderProgram.TEXTURE_TYPE_NONE_);
   this.setCoordTypeScreen();
   this.bindTexture(null);
 };
 
 /**
- * @param textureId
- * @param dataRect
+ * @param {Number} textureId
+ * @param {GeoRect} dataRect
+ * @param {Rectangle} clipRect
  */
 ProjShaderProgram.prototype.renderSurfaceTexture = function(textureId, dataRect, clipRect) {
   this.gl_.bindTexture(this.gl_.TEXTURE_2D, textureId);
 
-  this.gl_.uniform2f(this.locUnifDataCoord1_, dataRect[0], dataRect[1]);
-  this.gl_.uniform2f(this.locUnifDataCoord2_, dataRect[2], dataRect[3]);
+  this.gl_.uniform2f(this.locUnifDataCoord1_, dataRect.lambda1, dataRect.phi1);
+  this.gl_.uniform2f(this.locUnifDataCoord2_, dataRect.lambda2, dataRect.phi2);
 
   if (clipRect) {
-    this.gl_.uniform2f(this.locUnifClipCoord1_, clipRect[0], clipRect[1]);
-    this.gl_.uniform2f(this.locUnifClipCoord2_, clipRect[2], clipRect[3]);
+    this.gl_.uniform2f(this.locUnifClipCoord1_, clipRect.x1, clipRect.y1);
+    this.gl_.uniform2f(this.locUnifClipCoord2_, clipRect.x2, clipRect.y2);
   } else {
     this.gl_.uniform2f(this.locUnifClipCoord1_, 0.0, 0.0);
     this.gl_.uniform2f(this.locUnifClipCoord2_, 1.0, 1.0);
@@ -696,14 +802,14 @@ ProjShaderProgram.prototype.renderSurfaceTexture = function(textureId, dataRect,
  * @param points
  */
 ProjShaderProgram.prototype.renderPolyline = function(points) {
-  if ( points.length / 2 <= ProjShaderProgram.POINTS_BUFFER_SIZE ) {
+  if ( points.length / 2 <= ProjShaderProgram.POINTS_BUFFER_SIZE_ ) {
     this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(points));
     this.gl_.drawArrays(this.gl_.LINE_STRIP, 0, points.length / 2);
   } else {
     let endIdx = 0;
     let nextEndIdx = 0;
     do {
-      nextEndIdx = endIdx + ProjShaderProgram.POINTS_BUFFER_SIZE * 2;
+      nextEndIdx = endIdx + ProjShaderProgram.POINTS_BUFFER_SIZE_ * 2;
       if ( points.length < nextEndIdx ) {
         nextEndIdx = points.length;
       }
@@ -719,14 +825,14 @@ ProjShaderProgram.prototype.renderPolyline = function(points) {
  * @param points
  */
 ProjShaderProgram.prototype.renderPoints = function(points) {
-  if ( points.length / 2 <= ProjShaderProgram.POINTS_BUFFER_SIZE ) {
+  if ( points.length / 2 <= ProjShaderProgram.POINTS_BUFFER_SIZE_ ) {
     this.gl_.bufferSubData(this.gl_.ARRAY_BUFFER, 0, new Float32Array(points));
     this.gl_.drawArrays(this.gl_.POINTS, 0, points.length / 2);
   } else {
     let endIdx = 0;
     let nextEndIdx = 0;
     do {
-      nextEndIdx = endIdx + ProjShaderProgram.POINTS_BUFFER_SIZE * 2;
+      nextEndIdx = endIdx + ProjShaderProgram.POINTS_BUFFER_SIZE_ * 2;
       if ( points.length < nextEndIdx ) {
         nextEndIdx = points.length;
       }
@@ -739,8 +845,7 @@ ProjShaderProgram.prototype.renderPoints = function(points) {
 };
 
 /**
- * @param
- * @param dataRect
+ * @param {Float} intervalDeg
  */
 ProjShaderProgram.prototype.renderGraticule = function(intervalDeg) {
   this.gl_.uniform1f(this.locUnifGraticuleIntervalDeg_, intervalDeg);
@@ -791,7 +896,7 @@ ProjShaderProgram.prototype.init = function(vertShaderStr, fragShaderStr) {
   this.locUnifCanvasSize_ = this.gl_.getUniformLocation(this.program_, 'uCanvasSize');
   this.locUnifGraticuleIntervalDeg_ = this.gl_.getUniformLocation(this.program_, 'uGraticuleIntervalDeg');
 
-  this.coordsBuffer_ = this.createBuffer_(ProjShaderProgram.DIMENSION, ProjShaderProgram.POINTS_BUFFER_SIZE);
+  this.coordsBuffer_ = this.createBuffer_(ProjShaderProgram.DIMENSION_, ProjShaderProgram.POINTS_BUFFER_SIZE_);
   this.gl_.bindBuffer(this.gl_.ARRAY_BUFFER, this.coordsBuffer_.buffer);
 
   this.setClearColor({r: 0.0, g: 0.1, b: 0.0, a: 1.0});

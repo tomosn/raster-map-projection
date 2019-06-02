@@ -1,5 +1,5 @@
 /**
- * Raster Map Projection v0.0.28  2019-04-08
+ * Raster Map Projection v0.0.29  2019-06-02
  * Copyright (C) 2016-2019 T.Seno
  * All rights reserved.
  * @license GPL v3 License (http://www.gnu.org/licenses/gpl.html)
@@ -32,10 +32,10 @@ function ProjTMERC(lam0, phi0) {
 /**
  * 値域を表す矩形
  */
-ProjTMERC.RANGE_RECTANGLE = [-Math.PI, -Math.PI, +Math.PI, +Math.PI];
+ProjTMERC.RANGE_RECTANGLE = { x1:-Math.PI, y1:-Math.PI, x2:+Math.PI, y2:+Math.PI };
 
 ProjTMERC.prototype.getRange = function() {
-  return ProjTMERC.RANGE_RECTANGLE.slice(0);
+  return Object.assign({}, ProjTMERC.RANGE_RECTANGLE);
 };
 
 ProjTMERC.prototype.getProjCenter = function() {
@@ -134,11 +134,16 @@ ProjTMERC.prototype.containsSouthPole_ = function(x_min, y_min, x_max, y_max) {
 };
 
 //  TODO 要テスト？
-ProjTMERC.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
-  const x_min = (x1 <= x2) ? x1 : x2;
-  const x_max = (x1 <= x2) ? x2 : x1;
-  const y_min = (y1 <= y2) ? y1 : y2;
-  const y_max = (y1 <= y2) ? y2 : y1;
+/**
+ * inverse bounding box
+ * @param {Rectangle} rect
+ * @return {Object}
+ */
+ProjTMERC.prototype.inverseBoundingBox = function(rect) {
+  const x_min = (rect.x1 <= rect.x2) ? rect.x1 : rect.x2;
+  const x_max = (rect.x1 <= rect.x2) ? rect.x2 : rect.x1;
+  const y_min = (rect.y1 <= rect.y2) ? rect.y1 : rect.y2;
+  const y_max = (rect.y1 <= rect.y2) ? rect.y2 : rect.y1;
 
   if ( x_min <= 0 && 0 <= x_max ) {
     const containsNorthPole = this.containsNorthPole_(x_min, y_min, x_max, y_max);
@@ -146,15 +151,15 @@ ProjTMERC.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
 
     //  N極,S極の双方を含む場合
     if ( containsNorthPole && containsSouthPole ) {
-      return {lambda: [-Math.PI, +Math.PI], phi: [-Math.PI/2, +Math.PI/2]};
+      return { lambda1:-Math.PI, lambda2:+Math.PI, phi1:-Math.PI/2, phi2:+Math.PI/2 };
     }
     //  N極,S極のどちらか一方を含む場合
     if ( containsNorthPole || containsSouthPole ) {
       const range = this.inversePhiRange_([x_min, x_max], [y_min, y_max]);
       if ( containsNorthPole ) {
-        return {lambda: [-Math.PI, +Math.PI], phi: [range[0], Math.PI/2]};
+        return { lambda1:-Math.PI, lambda2:+Math.PI, phi1:range[0], phi2:Math.PI/2 };
       } else {
-        return {lambda: [-Math.PI, +Math.PI], phi: [-Math.PI/2, range[1]]};
+        return { lambda1:-Math.PI, lambda2:+Math.PI, phi1:-Math.PI/2, phi2:range[1] };
       }
     }
   }
@@ -165,7 +170,7 @@ ProjTMERC.prototype.inverseBoundingBox = function(x1, y1, x2, y2) {
   if (2 * Math.PI < lamRange2[1] - lamRange2[0]) {
     lamRange2 = [-Math.PI, Math.PI];
   }
-  return {lambda: lamRange2, phi: phiRange2};
+  return { lambda1:lamRange2[0], lambda2:lamRange2[1], phi1:phiRange2[0], phi2:phiRange2[1] };
 };
 
 //
@@ -411,18 +416,24 @@ ProjTMERC.VERTEX_SHADER_STR = [
   '}',
 
   'void main() {',
-  '  vInRange = 1.0;',
+  '  vInRange;',
   '  vec3 pos;',
+
   '  if ( uTextureType == 2 || uCoordType == 2 ) {',
+  '    vInRange = 1.0;',
   '    pos = vec3(aCoordX, aCoordY, 1.0);',
+
   '  } else if ( uCoordType == 1 ) {',
-  '    pos = uFwdTransform * vec3(aCoordX, aCoordY, 1.0);',
   '    vInRange = check_xy_range(vec2(aCoordX, aCoordY));',
+  '    pos = uFwdTransform * vec3(aCoordX, aCoordY, 1.0);',
+
   '  } else {',
   '    vec2 xy = proj_forward(uProjCenter, vec2(aCoordX, aCoordY));',
   '    vInRange = check_xy_range(xy);',
   '    pos = uFwdTransform * vec3(xy.x, xy.y, 1.0);',
+
   '  }',
+
   '  vCoord = pos.xy;',
   '  gl_Position = vec4(pos, 1.0);',
   '  gl_PointSize = uPointSize;',
@@ -491,17 +502,19 @@ ProjTMERC.FRAGMENT_SHADER_STR = [
   '}',
 
 
-  'bool render_graticule() {',
+  'void render_graticule() {',
   '  vec2 viewCoord = (uInvTransform * vec3(vCoord.x, vCoord.y, 1.0)).xy;',
   '  if ( validate_xy(viewCoord) == 0.0 ) {',
-  '    return false;',
+  '    discard;',
+  '    return;',
   '  }',
 
   '  vec2 lp = proj_inverse(uProjCenter, viewCoord);',
   '  vec2 baseLonLat = degrees(lp);',
   '  float absLat = abs(baseLonLat.y);',
   '  if (81.0 < absLat) {',
-  '    return false;',
+  '    discard;',
+  '    return;',
   '  }',
 
   '  float dx = 0.5 / uCanvasSize.x;',
@@ -528,13 +541,16 @@ ProjTMERC.FRAGMENT_SHADER_STR = [
   '  vec2 v32 = tv + 3.0 * tdx - 1.0 * tdy;',
 
   '  if ( validate_xy(v01) == 0.0 ||  validate_xy(v02) == 0.0 || validate_xy(v31) == 0.0 || validate_xy(v32) == 0.0) {',
-  '    return false;',
+  '    discard;',
+  '    return;',
   '  }',
   '  if ( validate_xy(v10) == 0.0 ||  validate_xy(v11) == 0.0 || validate_xy(v12) == 0.0 || validate_xy(v13) == 0.0) {',
-  '    return false;',
+  '    discard;',
+  '    return;',
   '  }',
   '  if ( validate_xy(v20) == 0.0 ||  validate_xy(v21) == 0.0 || validate_xy(v22) == 0.0 || validate_xy(v23) == 0.0) {',
-  '    return false;',
+  '    discard;',
+  '    return;',
   '  }',
 
   '  bool isNearDateLine = ( 135.0 < abs(baseLonLat.x) );',
@@ -569,14 +585,71 @@ ProjTMERC.FRAGMENT_SHADER_STR = [
   '  }',
 
   '  if (alpha == 0.0) {',
-  '    return false;',
+  '    discard;',
+  '    return;',
   '  }',
 
   '  vec3 lineColor = vec3(0.8);',
   '  gl_FragColor = vec4(lineColor, alpha * 0.75);',
-
-  '  return true;',
   '}',
+
+
+  'void render_surface_texture() {',
+  '  float inXY = 1.0;',
+  '  vec2 coord;',
+  '  if ( uCoordType == 2 ) {',
+  '    coord = vCoord;',
+
+  '  } else if ( uCoordType == 1 ) {',
+  '    coord = (uInvTransform * vec3(vCoord.x, vCoord.y, 1.0)).xy;',
+  '    inXY = inner_xy(coord);',
+  '    if ( inXY <= 0.0 ) {',
+  '      discard;',
+  '      return;',
+  '    }',
+
+  '  } else if ( uCoordType == 0 ) {',
+  '    vec2 viewCoord = (uInvTransform * vec3(vCoord.x, vCoord.y, 1.0)).xy;',
+  '    inXY = inner_xy(viewCoord);',
+  '    if ( inXY <= 0.0 ) {',
+  '      discard;',
+  '      return;',
+  '    }',
+  '    coord = proj_inverse(uProjCenter, viewCoord);',
+
+  '  }',
+
+  '  vec2 ts = (coord - uDataCoord1) / (uDataCoord2 - uDataCoord1);',
+  '  if ( all(lessThanEqual(uClipCoord1, ts)) && all(lessThanEqual(ts, uClipCoord2)) ) {',
+  '    vec4 outColor = texture2D(uTexture, vec2(ts.x, 1.0 - ts.y)) * inXY;',
+  '    outColor.a = outColor.a * uOpacity;',
+  '    gl_FragColor = outColor;',
+
+  '  } else {',
+  '    discard;',
+  '  }',
+
+  '}',
+
+
+  'void render_point_texture() {',
+  '  vec4 outColor = texture2D(uTexture, gl_PointCoord);',
+  '  if ( outColor.a == 0.0 ) {',
+  '    discard;',
+  '    return;',
+  '  }',
+  '  gl_FragColor = outColor;',
+  '}',
+
+
+  'void render_vector() {',
+  '  if ( uColor.a == 0.0 ) {',
+  '    discard;',
+  '    return;',
+  '  }',
+  '  gl_FragColor = uColor;',
+  '}',
+
 
   'void main() {',
   '  if ( vInRange < 0.5 ) {',
@@ -585,59 +658,19 @@ ProjTMERC.FRAGMENT_SHADER_STR = [
   '  }',
 
   '  if ( 0.0 < uGraticuleIntervalDeg ) {',
-  '    bool rendered = render_graticule();',
-  '    if ( !rendered ) {',
-  '      discard;',
-  '    }',
+  '    render_graticule();',
   '    return;',
   '  }',
 
-  '  vec4 outColor;',
-  '  bool isDiscard = false;',
-
   '  if ( uTextureType == 2 ) {',
-  '    float inXY = 1.0;',
-  '    vec2 coord;',
-  '    if ( uCoordType == 2 ) {',
-  '      coord = vCoord;',
-  '    } else {',
-  '      vec3 viewCoord = uInvTransform * vec3(vCoord.x, vCoord.y, 1.0);',
-  '      inXY = inner_xy(viewCoord.xy);',
-  '      if ( 0.0 < inXY ) {',
-  '        if ( uCoordType == 1 ) {',
-  '          coord = viewCoord.xy;',
-  '        } else if ( uCoordType == 0 ) {',
-  '          coord = proj_inverse(uProjCenter, viewCoord.xy);',
-  '        }',
-  '      } else {',
-  '        isDiscard = true;',
-  '        coord = vec2(0.0, 0.0);',
-  '      }',
-  '    }',
-
-  '    if ( !isDiscard ) {',
-  '      vec2 ts = (coord - uDataCoord1) / (uDataCoord2 - uDataCoord1);',
-  '      if ( uClipCoord1.x <= ts.x && uClipCoord1.y <= ts.y && ts.x <= uClipCoord2.x && ts.y <= uClipCoord2.y) {',
-  '        outColor = texture2D(uTexture, vec2(ts.x, 1.0 - ts.y)) * inXY;',
-  '        outColor.a = outColor.a * uOpacity;',
-  '      } else {',
-  '        isDiscard = true;',
-  '      }',
-  '    }',
+  '    render_surface_texture();',
 
   '  } else if ( uTextureType == 1 ) {',
-  '    outColor = texture2D(uTexture, gl_PointCoord);',
-  '    isDiscard = (outColor.a == 0.0);',
+  '    render_point_texture();',
 
   '  } else {',
-  '    outColor = uColor;',
-  '    isDiscard = (outColor.a == 0.0);',
-  '  }',
+  '    render_vector();',
 
-  '  if ( isDiscard ) {',
-  '    discard;',
-  '  } else {',
-  '    gl_FragColor = outColor;',
   '  }',
   '}',
 

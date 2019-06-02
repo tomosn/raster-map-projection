@@ -1,6 +1,6 @@
 {
   "name": "RasterMapProjection",
-  "version": "v0.0.28",
+  "version": "v0.0.29",
   "description": "A JavaScript library for on-the-fly map projection of raster tiles using WebGL.",
   "main": "Gruntfile.js",
   "scripts": {

@@ -27,7 +27,8 @@
     "RasterProjLAEA" : false,
     "RasterProjTMERC" : false,
     "MapView" : false,
-    "ViewWindowManager" : false
+    "ViewWindowManager" : false,
+    "RectangleUtils" : false
   },
 
   "eqnull" : true,
